@@ -1,0 +1,4 @@
+https://github.com/alecjacobson/common-3d-test-models
+https://huggingface.co/docs/diffusers/v0.33.1/api/models/unet3d-cond
+https://huggingface.co/learn/diffusion-course/unit1/3
+https://github.com/charlesq34/pointnet
