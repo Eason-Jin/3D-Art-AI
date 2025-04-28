@@ -6,24 +6,29 @@ import torch
 from torch.utils.data import DataLoader
 from diffusers import UNet3DConditionModel
 from CustomDataset import CustomDataset
-from utils import DEVICE, MAX_TIME, SIZE, corrupt, obj_to_voxel, voxel_to_obj, process_index, parallel_process
+from utils import DEVICE, MAX_TIME, OBJ_SIZE, corrupt, obj_to_voxel, voxel_to_obj
 import pandas as pd
 import multiprocessing as mp
 from functools import partial
+import shutil
 
 
 def process_time_step(i, voxel_grid, MAX_TIME, file):
-    print(f'Processing {file} {i}')
+    print(f'Processing {file} {i}...')
     result = corrupt(voxel_grid, torch.tensor(i / MAX_TIME))
-
+    print(f'{file} {i} processed')
     if i % 10 == 0:
-        print(f'\tSaving {file} {i}')
-        voxel_to_obj(voxel_grid.numpy(), f'obj/{file[:-4]}_{i}.obj')
+        print(f'\tSaving {file} {i}...')
+        voxel_to_obj(result.numpy(), f'generated/{file[:-4]}_{i}.obj')
+        print(f'\t{file} {i} saved')
 
     return i, result
 
 
 if __name__ == '__main__':
+    if os.path.exists('generated'):
+        shutil.rmtree('generated')
+    os.makedirs('generated')
     device = DEVICE
     columns = ['filename', 'original_data'] + \
         [f'noisy_data_{i}' for i in range(MAX_TIME)]
@@ -40,78 +45,96 @@ if __name__ == '__main__':
 
             row['original_data'] = voxel_grid
 
-            for i in range(MAX_TIME):
-                print(f'Processing {file} {i}')
-                result = corrupt(
-                    voxel_grid, torch.tensor(i / MAX_TIME))
+            # Create a partial function with the constant arguments
+            process_func = partial(process_time_step,
+                                   voxel_grid=voxel_grid,
+                                   MAX_TIME=MAX_TIME,
+                                   file=file)
+
+            # Parallelize the time steps
+            with mp.Pool(processes=8) as pool:
+                results = pool.map(process_func, range(MAX_TIME))
+
+            # Update the row with the results
+            for i, result in results:
                 row[f'noisy_data_{i}'] = result
-                if i % 10 == 0:
-                    print(f'\tSaving {file} {i}')
-                    voxel_to_obj(result.numpy(),
-                                 f'obj/{file[:-4]}_{i}.obj')
 
             rows.append(row)
 
+    object_names = list(
+        set(filename.split('_')[0] for filename in df['filename']))
+    name_idx = {name: idx for idx, name in enumerate(object_names)}
+    object_emb = torch.nn.Embedding(len(object_names), 1024).to(device)
+
     df = pd.DataFrame(rows, columns=columns)
 
-'''
-# Create dataset and dataloader
-dataset = CustomDataset(df)
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    dataset = CustomDataset(df, name_idx)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
-# 3. Initialize UNet3DConditionModel
-model = UNet3DConditionModel().to(device)
+    model = UNet3DConditionModel(
+        sample_size=OBJ_SIZE,
+        in_channels=1,
+        out_channels=1,
+        layers_per_block=2,
+        block_out_channels=(64, 128, 256, 512),
+        down_block_types=(
+            "DownBlock3D",
+            "DownBlock3D",
+            "DownBlock3D",
+            "DownBlock3D",
+        ),
+        up_block_types=(
+            "UpBlock3D",
+            "UpBlock3D",
+            "UpBlock3D",
+            "UpBlock3D",
+        ),
+        cross_attention_dim=1024,     # important! enables conditioning on the object embedding
+    ).to(device)
 
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    loss_fn = torch.nn.MSELoss()
 
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-loss_fn = torch.nn.MSELoss()
+    for epoch in range(10):
+        for batch in dataloader:
+            # (batch_size, 100, 1, 256, 256, 256)
+            noisy_list = batch['noisy_data_list']
+            # (batch_size, 1, 256, 256, 256)
+            original = batch['original_data']
+            name_idx = batch['name_idx']            # (batch_size,)
 
-for epoch in range(10):
-    for batch in dataloader:
-        # Get original (clean) data
-        original_data = batch['original_data'].to(device)
-        # Get the list of noisy samples at different timesteps
-        noisy_data_list = batch['noisy_data_list'].to(device)
+            batch_size, n_noisy, c, d, h, w = noisy_list.shape
 
-        # Shape: [batch_size, max_time, *spatial_dims]
-        batch_size = original_data.shape[0]
+            # (B, 100, 1, 256, 256, 256)
+            noisy_list = noisy_list.to(device)
+            original = original.to(device)          # (B, 1, 256, 256, 256)
+            name_idx = name_idx.to(device)
 
-        # For each batch, randomly select a timestep to train on
-        # This is a common approach in diffusion models
-        timesteps = torch.randint(
-            0, MAX_TIME, (batch_size,), device=device).long()
+            # Expand labels to match noisy_list
+            name_idx = name_idx.unsqueeze(
+                1).expand(-1, n_noisy).reshape(-1)  # (B × 100)
 
-        # Get the noisy samples at the selected timesteps for each item in the batch
-        batch_noisy_samples = []
-        for i in range(batch_size):
-            t = timesteps[i]
-            batch_noisy_samples.append(noisy_data_list[i, t])
+            # Expand original to match noisy_list
+            original = original.unsqueeze(
+                1).expand(-1, n_noisy, -1, -1, -1, -1)
 
-        # Stack the selected noisy samples
-        noisy_samples = torch.stack(batch_noisy_samples).unsqueeze(
-            1)  # Add channel dimension
+            # Reshape to (B × 100, C, D, H, W)
+            noisy_list = noisy_list.reshape(-1, c, d, h, w)
+            original = original.reshape(-1, c, d, h, w)
 
-        # Forward pass - model predicts the noise to be removed
-        # The 'encoder_hidden_states' would be used for conditional generation if needed
-        noise_pred = model(
-            noisy_samples,
-            timesteps,
-            encoder_hidden_states=None
-        ).sample
+            # Get embeddings
+            encoder_hidden_states = object_emb(name_idx)  # (B × 100, 1024)
+            encoder_hidden_states = encoder_hidden_states.unsqueeze(
+                1)  # (B × 100, 1, 1024)
 
-        # In diffusion models, we typically train the model to predict
-        # either the noise or the clean sample. Here, we're predicting the noise.
-        # Calculate the noise (difference between noisy and original)
-        noise_target = noisy_samples - original_data.unsqueeze(1)
+            # Forward pass
+            output = model(
+                noisy_list, encoder_hidden_states=encoder_hidden_states)
 
-        # Calculate loss
-        loss = loss_fn(noise_pred, noise_target)
+            loss = loss_fn(output, original)
 
-        # Backpropagation
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-    # Print epoch results
-    print(f'Epoch {epoch}, Average Loss: {loss:.6f}')
-'''
+        print(f'Epoch {epoch}, Loss: {loss:.6f}')

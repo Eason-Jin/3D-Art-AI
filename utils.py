@@ -6,7 +6,7 @@ from skimage.measure import marching_cubes
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MAX_TIME = 100
-SIZE = 64
+OBJ_SIZE = 256
 random = np.random.RandomState(42)
 
 
@@ -32,7 +32,7 @@ def corrupt(voxel_grid: torch.Tensor, amount: torch.Tensor) -> torch.Tensor:
     return np.clip(corrupted, 0, 1)
 
 
-def obj_to_voxel(filename: str, grid_size: int = 8) -> np.ndarray:
+def obj_to_voxel(filename: str, grid_size: int = OBJ_SIZE) -> np.ndarray:
     """
     Convert an OBJ file to a voxel grid.
 
@@ -63,7 +63,6 @@ def voxel_to_obj(voxel_grid: np.ndarray, filename: str) -> None:
     Args:
         voxel_grid: 3D numpy array representing the voxel grid
         filename: Path to save the OBJ file
-        threshold: Threshold for the marching cubes algorithm
     """
     # Pad the voxel grid to ensure watertight mesh
     padded_grid = np.pad(voxel_grid, 1, mode='constant', constant_values=0)
