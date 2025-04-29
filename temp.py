@@ -6,21 +6,22 @@ import torch
 from torch.utils.data import DataLoader
 from diffusers import UNet3DConditionModel
 from CustomDataset import CustomDataset
-from utils import DEVICE, MAX_TIME, OBJ_SIZE, corrupt, obj_to_voxel, voxel_to_obj
+from utils import DEVICE, MAX_TIME, OBJ_SIZE, corrupt, obj_to_voxel, voxel_to_obj, text_encoder
 import pandas as pd
 import multiprocessing as mp
 from functools import partial
 import shutil
+from tqdm import tqdm
 
 
-def process_time_step(i, voxel_grid, MAX_TIME, file):
-    print(f'Processing {file} {i}...')
+def process_time_step(i, voxel_grid, MAX_TIME, filename):
+    # print(f'Processing {filename} {i}...')
     result = corrupt(voxel_grid, torch.tensor(i / MAX_TIME))
-    print(f'{file} {i} processed')
+    # print(f'{filename} {i} processed')
     if i % 10 == 0:
-        print(f'\tSaving {file} {i}...')
-        voxel_to_obj(result.numpy(), f'generated/{file[:-4]}_{i}.obj')
-        print(f'\t{file} {i} saved')
+        # print(f'\tSaving {filename} {i}...')
+        voxel_to_obj(result.numpy(), f'generated/{filename}_{i}.obj')
+        # print(f'\t{filename} {i} saved')
 
     return i, result
 
@@ -30,26 +31,20 @@ if __name__ == '__main__':
         shutil.rmtree('generated')
     os.makedirs('generated')
     device = DEVICE
-    columns = ['filename', 'original_data'] + \
-        [f'noisy_data_{i}' for i in range(MAX_TIME)]
+    columns = ['filename', 'original_data', 'noise_level', 'noisy_data']
     df = pd.DataFrame(columns=columns)
 
     rows = []
 
     for file in os.listdir('obj'):
         if file.lower().endswith('.obj'):
-            row = {col: None for col in columns}
-            row['filename'] = file
-
             voxel_grid = torch.from_numpy(obj_to_voxel(f'obj/{file}'))
-
-            row['original_data'] = voxel_grid
-
+            filename = file[:-4]
             # Create a partial function with the constant arguments
             process_func = partial(process_time_step,
                                    voxel_grid=voxel_grid,
                                    MAX_TIME=MAX_TIME,
-                                   file=file)
+                                   filename=filename)
 
             # Parallelize the time steps
             with mp.Pool(processes=8) as pool:
@@ -57,18 +52,19 @@ if __name__ == '__main__':
 
             # Update the row with the results
             for i, result in results:
-                row[f'noisy_data_{i}'] = result
-
-            rows.append(row)
-
-    object_names = list(
-        set(filename.split('_')[0] for filename in df['filename']))
-    name_idx = {name: idx for idx, name in enumerate(object_names)}
-    object_emb = torch.nn.Embedding(len(object_names), 1024).to(device)
+                new_row = {col: None for col in columns}
+                new_row.update({
+                    'filename': filename,
+                    'original_data': voxel_grid,
+                    'noise_level': i,
+                    'noisy_data': result,
+                })
+                rows.append(new_row)
 
     df = pd.DataFrame(rows, columns=columns)
+    df.to_csv('data.csv', index=False)
 
-    dataset = CustomDataset(df, name_idx)
+    dataset = CustomDataset(df)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
     model = UNet3DConditionModel(
@@ -89,52 +85,39 @@ if __name__ == '__main__':
             "UpBlock3D",
             "UpBlock3D",
         ),
-        cross_attention_dim=1024,     # important! enables conditioning on the object embedding
+        cross_attention_dim=512,
     ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     loss_fn = torch.nn.MSELoss()
 
-    for epoch in range(10):
-        for batch in dataloader:
-            # (batch_size, 100, 1, 256, 256, 256)
-            noisy_list = batch['noisy_data_list']
-            # (batch_size, 1, 256, 256, 256)
-            original = batch['original_data']
-            name_idx = batch['name_idx']            # (batch_size,)
+    model.train()
 
-            batch_size, n_noisy, c, d, h, w = noisy_list.shape
+    num_epochs = 10
+    for epoch in range(num_epochs):
+        epoch_loss = 0.0
 
-            # (B, 100, 1, 256, 256, 256)
-            noisy_list = noisy_list.to(device)
-            original = original.to(device)          # (B, 1, 256, 256, 256)
-            name_idx = name_idx.to(device)
+        for batch in tqdm(dataloader, desc=f"Epoch {epoch+1}/{num_epochs}"):
+            noisy_voxel = batch['noisy_voxel'].to(
+                device)            # [B, 1, D, H, W]
+            clean_voxel = batch['clean_voxel'].to(
+                device)            # [B, 1, D, H, W]
+            timestep = batch['noise_level'].to(device)  # [B]
+            descriptions = batch['description']
 
-            # Expand labels to match noisy_list
-            name_idx = name_idx.unsqueeze(
-                1).expand(-1, n_noisy).reshape(-1)  # (B × 100)
+            # Embed descriptions (shape: [B, embed_dim])
+            text_emb = text_encoder(descriptions).to(device)
 
-            # Expand original to match noisy_list
-            original = original.unsqueeze(
-                1).expand(-1, n_noisy, -1, -1, -1, -1)
+            # Predict noise from noisy voxel
+            pred = model(sample=noisy_voxel, timestep=timestep,
+                         encoder_hidden_states=text_emb).sample
 
-            # Reshape to (B × 100, C, D, H, W)
-            noisy_list = noisy_list.reshape(-1, c, d, h, w)
-            original = original.reshape(-1, c, d, h, w)
-
-            # Get embeddings
-            encoder_hidden_states = object_emb(name_idx)  # (B × 100, 1024)
-            encoder_hidden_states = encoder_hidden_states.unsqueeze(
-                1)  # (B × 100, 1, 1024)
-
-            # Forward pass
-            output = model(
-                noisy_list, encoder_hidden_states=encoder_hidden_states)
-
-            loss = loss_fn(output, original)
+            loss = loss_fn(pred, clean_voxel)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-        print(f'Epoch {epoch}, Loss: {loss:.6f}')
+            epoch_loss += loss.item()
+
+        print(f"Epoch {epoch+1} Loss: {epoch_loss / len(dataloader):.6f}")

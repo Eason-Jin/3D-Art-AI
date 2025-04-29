@@ -3,6 +3,7 @@ import numpy as np
 import trimesh
 import multiprocessing
 from skimage.measure import marching_cubes
+from transformers import CLIPTokenizer, CLIPTextModel
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MAX_TIME = 100
@@ -78,33 +79,15 @@ def voxel_to_obj(voxel_grid: np.ndarray, filename: str) -> None:
     mesh.export(filename)
 
 
-def process_index(i, voxel_grid, file):
-    print(f'Processing {file} {i}')
-    row = {}
-    row[f'noisy_data_{i}'] = corrupt(voxel_grid, torch.tensor(i / MAX_TIME))
-
-    if i % 10 == 0:
-        print(f'\t\tSaving {file} {i}')
-        voxel_to_obj(voxel_grid.numpy(), f'obj/{file[:-4]}_{i}.obj')
-
-    return i, row
+tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+text_model = CLIPTextModel.from_pretrained(
+    "openai/clip-vit-base-patch32").eval().to(DEVICE)
 
 
-def parallel_process(file, voxel_grid, columns):
-    row = {col: None for col in columns}
-    row['filename'] = file
-    row['original_data'] = voxel_grid
-
-    # Create a pool of workers to process each index i in parallel
-    with multiprocessing.Pool() as pool:
-        results = pool.starmap(
-            process_index, [(i, voxel_grid, file) for i in range(MAX_TIME)])
-
-    # Sort results by index to ensure the correct order of noisy data
-    results.sort(key=lambda x: x[0])
-
-    # Fill the row with results
-    for _, result in results:
-        row.update(result)
-
-    return row
+def text_encoder(text_list):
+    inputs = tokenizer(text_list, padding=True,
+                       truncation=True, return_tensors="pt").to(DEVICE)
+    with torch.no_grad():
+        embeddings = text_model(
+            **inputs).last_hidden_state[:, 0, :]  # CLS token
+    return embeddings

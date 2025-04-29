@@ -1,26 +1,26 @@
 from torch.utils.data import Dataset
-from utils import MAX_TIME
+import torch
 import pandas as pd
 
 
 class CustomDataset(Dataset):
-    def __init__(self, dataframe: pd.DataFrame, name_idx: dict, max_time: int = MAX_TIME):
-        self.filenames = dataframe['filename'].tolist()
-        self.data = dataframe['original_data'].tolist()
-        self.noisy_data = [
-            [row[f'noisy_data_{i}'] for i in range(max_time)]
-            for _, row in dataframe.iterrows()
-        ]
-        self.name_indices = [name_idx[filename.split(
-            '_')[0]] for filename in self.filenames]
+    def __init__(self, dataframe: pd.DataFrame):
+        self.df = dataframe
 
     def __len__(self):
-        return len(self.data)
+        return len(self.df)
 
-    def __getitem__(self, idx: int) -> dict:
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+
+        clean_voxel = torch.tensor(row['original_data'], dtype=torch.float32).unsqueeze(0)
+        noisy_voxel = torch.tensor(row['noisy_data'], dtype=torch.float32).unsqueeze(0)
+        noise_level = row['noise_level']
+        description = row['filename']
+
         return {
-            'filename': self.filenames[idx],
-            'original_data': self.data[idx],
-            'noisy_data_list': self.noisy_data[idx],
-            'name_idx': self.name_indices[idx],
+            'clean_voxel': clean_voxel,
+            'noisy_voxel': noisy_voxel,
+            'noise_level': noise_level,
+            'description': description
         }
