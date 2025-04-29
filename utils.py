@@ -7,7 +7,7 @@ from transformers import CLIPTokenizer, CLIPTextModel
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MAX_TIME = 100
-OBJ_SIZE = 256
+OBJ_SIZE = 8
 random = np.random.RandomState(42)
 
 
@@ -33,7 +33,7 @@ def corrupt(voxel_grid: torch.Tensor, amount: torch.Tensor) -> torch.Tensor:
     return np.clip(corrupted, 0, 1)
 
 
-def obj_to_voxel(filename: str, grid_size: int = OBJ_SIZE) -> np.ndarray:
+def obj_to_voxel(filename: str, grid_size: int = OBJ_SIZE+1) -> np.ndarray:
     """
     Convert an OBJ file to a voxel grid.
 
@@ -52,7 +52,7 @@ def obj_to_voxel(filename: str, grid_size: int = OBJ_SIZE) -> np.ndarray:
     mesh.apply_scale(1 / np.max(mesh.extents))
 
     # Voxelize the mesh
-    voxels = mesh.voxelized(pitch=2.0 / grid_size).fill()
+    voxels = mesh.voxelized(pitch=1.0 / grid_size).fill()
     # Convert to binary array and return
     return voxels.matrix.astype(np.uint8)
 
@@ -88,6 +88,5 @@ def text_encoder(text_list):
     inputs = tokenizer(text_list, padding=True,
                        truncation=True, return_tensors="pt").to(DEVICE)
     with torch.no_grad():
-        embeddings = text_model(
-            **inputs).last_hidden_state[:, 0, :]  # CLS token
+        embeddings = text_model(**inputs).last_hidden_state     # [B, seq_len, D]
     return embeddings

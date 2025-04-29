@@ -12,6 +12,8 @@ import multiprocessing as mp
 from functools import partial
 import shutil
 from tqdm import tqdm
+import sys
+import ast
 
 
 def process_time_step(i, voxel_grid, MAX_TIME, filename):
@@ -68,7 +70,7 @@ if __name__ == '__main__':
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
     model = UNet3DConditionModel(
-        sample_size=OBJ_SIZE,
+        sample_size=OBJ_SIZE+1,
         in_channels=1,
         out_channels=1,
         layers_per_block=2,
@@ -105,8 +107,7 @@ if __name__ == '__main__':
             timestep = batch['noise_level'].to(device)  # [B]
             descriptions = batch['description']
 
-            # Embed descriptions (shape: [B, embed_dim])
-            text_emb = text_encoder(descriptions).to(device)
+            text_emb = text_encoder(descriptions).to(device)    # [B, seq_len, D]
 
             # Predict noise from noisy voxel
             pred = model(sample=noisy_voxel, timestep=timestep,
