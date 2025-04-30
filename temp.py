@@ -1,37 +1,31 @@
 import os
-import trimesh
-import numpy as np
-import tensorflow as tf
 import torch
 from torch.utils.data import DataLoader
 from diffusers import UNet3DConditionModel
 from CustomDataset import CustomDataset
-from utils import DEVICE, MAX_TIME, OBJ_SIZE, corrupt, obj_to_voxel, voxel_to_obj, text_encoder
+from utils import DEVICE, MAX_TIME, OBJ_SIZE, corrupt, obj_to_voxel, text_encoder, voxel_to_obj
 import pandas as pd
 import multiprocessing as mp
 from functools import partial
 import shutil
 from tqdm import tqdm
-import sys
-import ast
 
+OUTPUT_MODEL = False
 
 def process_time_step(i, voxel_grid, MAX_TIME, filename):
-    # print(f'Processing {filename} {i}...')
     result = corrupt(voxel_grid, torch.tensor(i / MAX_TIME))
-    # print(f'{filename} {i} processed')
-    if i % 10 == 0:
-        # print(f'\tSaving {filename} {i}...')
+    if i % 10 == 0 and OUTPUT_MODEL:
         voxel_to_obj(result.numpy(), f'generated/{filename}_{i}.obj')
-        # print(f'\t{filename} {i} saved')
 
     return i, result
 
 
 if __name__ == '__main__':
-    if os.path.exists('generated'):
-        shutil.rmtree('generated')
-    os.makedirs('generated')
+    if OUTPUT_MODEL:
+        if os.path.exists('generated'):
+            shutil.rmtree('generated')
+        os.makedirs('generated')
+
     device = DEVICE
     columns = ['filename', 'original_data', 'noise_level', 'noisy_data']
     df = pd.DataFrame(columns=columns)
@@ -40,8 +34,10 @@ if __name__ == '__main__':
 
     for file in os.listdir('obj'):
         if file.lower().endswith('.obj'):
+            print(f'Loading {file}')
             voxel_grid = torch.from_numpy(obj_to_voxel(f'obj/{file}'))
             filename = file[:-4]
+            print(f'Generating noise for {file}')
             # Create a partial function with the constant arguments
             process_func = partial(process_time_step,
                                    voxel_grid=voxel_grid,
@@ -53,6 +49,7 @@ if __name__ == '__main__':
                 results = pool.map(process_func, range(MAX_TIME))
 
             # Update the row with the results
+            print(f'Creating entry for {file}')
             for i, result in results:
                 new_row = {col: None for col in columns}
                 new_row.update({
@@ -63,14 +60,19 @@ if __name__ == '__main__':
                 })
                 rows.append(new_row)
 
+    date_time = pd.Timestamp.now().strftime("%Y_%m_%d_%H-%M-%S")
+    folder_path = f'models/{date_time}'
+    os.makedirs(f'models/{date_time}', exist_ok=True)
+
+    print('Creating DataFrame')
     df = pd.DataFrame(rows, columns=columns)
-    df.to_csv('data.csv', index=False)
+    df.to_csv(f'{folder_path}/data.csv', index=False)
 
     dataset = CustomDataset(df)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
     model = UNet3DConditionModel(
-        sample_size=OBJ_SIZE+1,
+        sample_size=OBJ_SIZE,
         in_channels=1,
         out_channels=1,
         layers_per_block=2,
@@ -107,7 +109,8 @@ if __name__ == '__main__':
             timestep = batch['noise_level'].to(device)  # [B]
             descriptions = batch['description']
 
-            text_emb = text_encoder(descriptions).to(device)    # [B, seq_len, D]
+            text_emb = text_encoder(descriptions).to(
+                device)    # [B, seq_len, D]
 
             # Predict noise from noisy voxel
             pred = model(sample=noisy_voxel, timestep=timestep,
@@ -122,3 +125,6 @@ if __name__ == '__main__':
             epoch_loss += loss.item()
 
         print(f"Epoch {epoch+1} Loss: {epoch_loss / len(dataloader):.6f}")
+
+    # Save the model
+    model.save_pretrained(f'models/{date_time}/diffusion_model')

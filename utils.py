@@ -1,12 +1,11 @@
 import torch
 import numpy as np
 import trimesh
-import multiprocessing
 from skimage.measure import marching_cubes
 from transformers import CLIPTokenizer, CLIPTextModel
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MAX_TIME = 100
+MAX_TIME = 500
 OBJ_SIZE = 8
 random = np.random.RandomState(42)
 
@@ -33,9 +32,10 @@ def corrupt(voxel_grid: torch.Tensor, amount: torch.Tensor) -> torch.Tensor:
     return np.clip(corrupted, 0, 1)
 
 
-def obj_to_voxel(filename: str, grid_size: int = OBJ_SIZE+1) -> np.ndarray:
+def obj_to_voxel(filename: str, grid_size: int = OBJ_SIZE) -> np.ndarray:
     """
-    Convert an OBJ file to a voxel grid.
+    Convert an OBJ file to a voxel grid with consistent dimensions,
+    ensuring the object is centered in the voxel space.
 
     Args:
         filename: Path to the OBJ file
@@ -43,6 +43,7 @@ def obj_to_voxel(filename: str, grid_size: int = OBJ_SIZE+1) -> np.ndarray:
 
     Returns:
         A 3D numpy array representing the voxel grid (1 = occupied, 0 = empty)
+        with shape (grid_size, grid_size, grid_size)
     """
     # Load the mesh
     mesh = trimesh.load(filename)
@@ -53,8 +54,40 @@ def obj_to_voxel(filename: str, grid_size: int = OBJ_SIZE+1) -> np.ndarray:
 
     # Voxelize the mesh
     voxels = mesh.voxelized(pitch=1.0 / grid_size).fill()
-    # Convert to binary array and return
-    return voxels.matrix.astype(np.uint8)
+
+    # Get the voxel matrix
+    voxel_matrix = voxels.matrix.astype(np.uint8)
+
+    # Create an empty target array with the exact dimensions we want
+    target_shape = (grid_size, grid_size, grid_size)
+    result = np.zeros(target_shape, dtype=np.uint8)
+
+    # Get the shape of our voxelized result
+    actual_shape = voxel_matrix.shape
+
+    # Calculate offsets to center the voxel representation in our target grid
+    offsets = [(target_shape[i] - min(actual_shape[i],
+                target_shape[i])) // 2 for i in range(3)]
+
+    # Copy the data with proper centering, clipping or padding as necessary
+    for i in range(min(actual_shape[0], target_shape[0])):
+        for j in range(min(actual_shape[1], target_shape[1])):
+            for k in range(min(actual_shape[2], target_shape[2])):
+                target_i = i + offsets[0]
+                target_j = j + offsets[1]
+                target_k = k + offsets[2]
+
+                # Ensure we don't go out of bounds
+                if (0 <= target_i < target_shape[0] and
+                    0 <= target_j < target_shape[1] and
+                        0 <= target_k < target_shape[2]):
+                    result[target_i, target_j,
+                           target_k] = voxel_matrix[i, j, k]
+
+    if result.shape != (OBJ_SIZE, OBJ_SIZE, OBJ_SIZE):
+        raise ValueError(
+            f"Resulting voxel grid shape {result.shape} does not match target shape {target_shape}.")
+    return result
 
 
 def voxel_to_obj(voxel_grid: np.ndarray, filename: str) -> None:
@@ -84,9 +117,10 @@ text_model = CLIPTextModel.from_pretrained(
     "openai/clip-vit-base-patch32").eval().to(DEVICE)
 
 
-def text_encoder(text_list):
+def text_encoder(text_list: list) -> torch.Tensor:
     inputs = tokenizer(text_list, padding=True,
                        truncation=True, return_tensors="pt").to(DEVICE)
     with torch.no_grad():
-        embeddings = text_model(**inputs).last_hidden_state     # [B, seq_len, D]
+        embeddings = text_model(
+            **inputs).last_hidden_state     # [B, seq_len, D]
     return embeddings
