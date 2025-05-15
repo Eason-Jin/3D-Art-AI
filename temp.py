@@ -69,7 +69,7 @@ if __name__ == '__main__':
     df.to_csv(f'{folder_path}/data.csv', index=False)
 
     dataset = CustomDataset(df)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=8, shuffle=True)
 
     model = UNet3DConditionModel(
         sample_size=OBJ_SIZE,
