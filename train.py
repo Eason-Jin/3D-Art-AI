@@ -126,5 +126,6 @@ if __name__ == '__main__':
 
         print(f"Epoch {epoch+1} Loss: {epoch_loss / len(dataloader):.6f}")
 
-    # Save the model
     model.save_pretrained(f'models/{date_time}/diffusion_model')
+
+# TODO: checkout sparse convolutional networks

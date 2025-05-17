@@ -6,7 +6,7 @@ from transformers import CLIPTokenizer, CLIPTextModel
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MAX_TIME = 1000
-OBJ_SIZE = 16
+OBJ_SIZE = 32
 random = np.random.RandomState(42)
 
 
