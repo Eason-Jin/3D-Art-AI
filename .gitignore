@@ -174,7 +174,6 @@ cython_debug/
 .pypirc
 
 .vscode
-*.obj
 *.jpeg
 *.png
 *.pt
