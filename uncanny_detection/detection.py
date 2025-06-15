@@ -16,7 +16,7 @@ def is_uncanny_1(image_path):
         model_id, torch_dtype=torch.bfloat16, device_map="auto"
     )
 
-    prompt = "You are given an image. Decide whether it is canny or uncanny. An image is considered uncanny if it appears visually strange, unsettling, or unnatural. This includes things like distorted proportions, oddly merged or overlapping objects, unnatural facial features, eerie symmetry, or anything that feels off despite resembling familiar things. If the image looks normal, clear, and visually coherent, it is canny. Respond with only one word: either “canny” or “uncanny”."
+    prompt = "You are given an image. Evaluate whether it is canny or uncanny. An image is uncanny if it evokes a sense of visual unease or unnaturalness—this may include distorted anatomy, unresolved form-function tension, eerie symmetries, or features that imply hybrid or parasitic use. Consider if the object suggests former identities (like residual limbs or ancestral shapes), broken networks, or docking points hinting at unknown systems. Ask whether the image might transform under motion or shifting light, and whether human response—trust, fear, or indifference—might be misleading. If the image appears visually coherent, natural, and free from such ambiguity, it is canny. Respond with only one word: 'CANNY' or 'UNCANNY'."
 
     inputs = processor(text=prompt, images=image,
                        return_tensors="pt").to(model.device)
