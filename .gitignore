@@ -178,5 +178,6 @@ cython_debug/
 *.png
 *.pt
 /papers
-data.csv
+*.csv
 /models
+requirements.txt

@@ -1,24 +1,22 @@
 import os
+import ast
 import torch
 from torch.utils.data import DataLoader
 from diffusers import UNet3DConditionModel
 from CustomDataset import CustomDataset
 from utils import DEVICE, MAX_TIME, OBJ_SIZE, corrupt, obj_to_voxel, text_encoder, voxel_to_obj
 import pandas as pd
-import multiprocessing as mp
-from functools import partial
 import shutil
 from tqdm import tqdm
 
 OUTPUT_MODEL = False
 
-def process_time_step(i, voxel_grid, MAX_TIME, filename):
+def process_time_step(i, voxel_grid, filename):
+    print(f'Generating {filename} at time {i}')
     result = corrupt(voxel_grid, torch.tensor(i / MAX_TIME))
     if i % 10 == 0 and OUTPUT_MODEL:
         voxel_to_obj(result.numpy(), f'generated/{filename}_{i}.obj')
-
     return i, result
-
 
 if __name__ == '__main__':
     if OUTPUT_MODEL:
@@ -27,49 +25,51 @@ if __name__ == '__main__':
         os.makedirs('generated')
 
     device = DEVICE
-    columns = ['filename', 'original_data', 'noise_level', 'noisy_data']
-    df = pd.DataFrame(columns=columns)
+    DATA_FILE = 'obj_data.csv'
 
-    rows = []
+    if os.path.isfile(DATA_FILE):
+        print('Loading DataFrame')
+        df = pd.read_csv(DATA_FILE)
 
-    for file in os.listdir('obj'):
-        if file.lower().endswith('.obj'):
-            print(f'Loading {file}')
-            voxel_grid = torch.from_numpy(obj_to_voxel(f'obj/{file}'))
-            filename = file[:-4]
-            print(f'Generating noise for {file}')
-            # Create a partial function with the constant arguments
-            process_func = partial(process_time_step,
-                                   voxel_grid=voxel_grid,
-                                   MAX_TIME=MAX_TIME,
-                                   filename=filename)
+        # Convert string representations back to tensors
+        def parse(col):
+            return df[col].apply(lambda x: torch.tensor(ast.literal_eval(x)))
 
-            # Parallelize the time steps
-            with mp.Pool(processes=8) as pool:
-                results = pool.map(process_func, range(MAX_TIME))
+        df['original_data'] = parse('original_data')
+        df['noisy_data'] = parse('noisy_data')
 
-            # Update the row with the results
-            print(f'Creating entry for {file}')
-            for i, result in results:
-                new_row = {col: None for col in columns}
-                new_row.update({
-                    'filename': filename,
-                    'original_data': voxel_grid,
-                    'noise_level': i,
-                    'noisy_data': result,
-                })
-                rows.append(new_row)
+    else:
+        columns = ['filename', 'original_data', 'noise_level', 'noisy_data']
+        rows = []
+
+        for file in os.listdir('obj'):
+            if file.lower().endswith('.obj'):
+                print(f'Loading {file}')
+                voxel_grid = torch.from_numpy(obj_to_voxel(f'obj/{file}'))
+                filename = file[:-4]
+
+                print(f'Generating noise for {file}')
+                for i in range(MAX_TIME):
+                    step, result = process_time_step(i, voxel_grid, filename)
+                    new_row = {
+                        'filename': filename,
+                        'original_data': voxel_grid.tolist(),
+                        'noise_level': step,
+                        'noisy_data': result.tolist(),
+                    }
+                    rows.append(new_row)
+
+        print('Creating DataFrame')
+        df = pd.DataFrame(rows, columns=columns)
+        df.to_csv(DATA_FILE, index=False)
+
+    dataset = CustomDataset(df)
 
     date_time = pd.Timestamp.now().strftime("%Y_%m_%d_%H-%M-%S")
     folder_path = f'models/{date_time}'
-    os.makedirs(f'models/{date_time}', exist_ok=True)
+    os.makedirs(folder_path, exist_ok=True)
 
-    print('Creating DataFrame')
-    df = pd.DataFrame(rows, columns=columns)
-    df.to_csv(f'{folder_path}/data.csv', index=False)
-
-    dataset = CustomDataset(df)
-    dataloader = DataLoader(dataset, batch_size=8, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
     model = UNet3DConditionModel(
         sample_size=OBJ_SIZE,
@@ -102,17 +102,13 @@ if __name__ == '__main__':
         epoch_loss = 0.0
 
         for batch in tqdm(dataloader, desc=f"Epoch {epoch+1}/{num_epochs}"):
-            noisy_voxel = batch['noisy_voxel'].to(
-                device)            # [B, 1, D, H, W]
-            clean_voxel = batch['clean_voxel'].to(
-                device)            # [B, 1, D, H, W]
-            timestep = batch['noise_level'].to(device)  # [B]
+            noisy_voxel = batch['noisy_voxel'].to(device)
+            clean_voxel = batch['clean_voxel'].to(device)
+            timestep = batch['noise_level'].to(device)
             descriptions = batch['description']
 
-            text_emb = text_encoder(descriptions).to(
-                device)    # [B, seq_len, D]
+            text_emb = text_encoder(descriptions).to(device)
 
-            # Predict noise from noisy voxel
             pred = model(sample=noisy_voxel, timestep=timestep,
                          encoder_hidden_states=text_emb).sample
 
@@ -126,6 +122,5 @@ if __name__ == '__main__':
 
         print(f"Epoch {epoch+1} Loss: {epoch_loss / len(dataloader):.6f}")
 
-    model.save_pretrained(f'models/{date_time}/diffusion_model')
+    model.save_pretrained(f'{folder_path}/diffusion_model')
 
-# TODO: checkout sparse convolutional networks

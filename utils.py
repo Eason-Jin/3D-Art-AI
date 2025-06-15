@@ -5,8 +5,8 @@ from skimage.measure import marching_cubes
 from transformers import CLIPTokenizer, CLIPTextModel
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MAX_TIME = 1000
-OBJ_SIZE = 32
+MAX_TIME = 10
+OBJ_SIZE = 64
 random = np.random.RandomState(42)
 
 
