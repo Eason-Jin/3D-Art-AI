@@ -1,43 +1,45 @@
-from transformers import Idefics2Processor, Idefics2ForConditionalGeneration
+from transformers import AutoProcessor, AutoModelForVision2Seq
 from ultralytics import YOLO
 from PIL import Image
 import torch
 import cv2
 import matplotlib.pyplot as plt
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def is_uncanny_1(image_path):
+def is_uncanny_vlm(image_path):
     image = Image.open(image_path).convert("RGB")
 
-    model_id = "HuggingFaceM4/idefics2-8b"
+    processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b")
+    model = AutoModelForVision2Seq.from_pretrained("HuggingFaceM4/idefics2-8b",).to(DEVICE)
+    
+    rule = "You are given an image. Decide whether it is canny or uncanny. An image is considered uncanny if it appears visually strange, unsettling, or unnatural. This includes things like distorted proportions, oddly merged or overlapping objects, unnatural facial features, eerie symmetry, or anything that feels off despite resembling familiar things. If the image looks normal, clear, and visually coherent, it is canny. Respond with only one word: either “canny” or “uncanny”."
+    
+    messages = [
+	    {
+	        "role": "user",
+	        "content": [
+	            {"type": "image"},
+	            {"type": "text", "text": rule},
+            ]
+        },  
+    ]
+    
+    prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+    inputs = processor(text=prompt, images=[image], return_tensors="pt")
+    inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
 
-    processor = Idefics2Processor.from_pretrained(model_id)
-    model = Idefics2ForConditionalGeneration.from_pretrained(
-        model_id, torch_dtype=torch.bfloat16, device_map="auto"
-    )
-
-    prompt = "You are given an image. Evaluate whether it is canny or uncanny. An image is uncanny if it evokes a sense of visual unease or unnaturalness—this may include distorted anatomy, unresolved form-function tension, eerie symmetries, or features that imply hybrid or parasitic use. Consider if the object suggests former identities (like residual limbs or ancestral shapes), broken networks, or docking points hinting at unknown systems. Ask whether the image might transform under motion or shifting light, and whether human response—trust, fear, or indifference—might be misleading. If the image appears visually coherent, natural, and free from such ambiguity, it is canny. Respond with only one word: 'CANNY' or 'UNCANNY'."
-
-    inputs = processor(text=prompt, images=image,
-                       return_tensors="pt").to(model.device)
-
-    with torch.no_grad():
-        generated_ids = model.generate(**inputs, max_new_tokens=10)
-        response = processor.batch_decode(generated_ids, skip_special_tokens=True)[
-            0].strip().lower()
-
-    print("Model response:", response)
+    generated_ids = model.generate(**inputs, max_new_tokens=500)
+    response = processor.batch_decode(generated_ids, skip_special_tokens=True)
+    response = response[0]
+    filtered_response = response[response.find("Assistant: ")+10:-1].upper()
+    print("Model response:", filtered_response)
 
 
-def is_uncanny_2(image_path):
+def is_uncanny_yolo(image_path, display = False):
     model = YOLO('yolov8s.pt')
     results = model(image_path)[0]
-
-    for box in results.boxes:
-        cls_id = int(box.cls[0])
-        class_name = model.names[cls_id]
-        confidence = float(box.conf[0])
-        print(f"{class_name}: {confidence:.2f}")
+    
 
     if len(results.boxes) == 0:
         print("Image is UNCANNY (no detections)")
@@ -51,14 +53,21 @@ def is_uncanny_2(image_path):
         else:
             print("Image is CANNY")
 
-    rendered_image = results.plot()  # Returns an image array (BGR format)
-    image_rgb = cv2.cvtColor(rendered_image, cv2.COLOR_BGR2RGB)
+    if display:
+        for box in results.boxes:
+            cls_id = int(box.cls[0])
+            class_name = model.names[cls_id]
+            confidence = float(box.conf[0])
+            print(f"{class_name}: {confidence:.2f}")
+            
+        rendered_image = results.plot()  # Returns an image array (BGR format)
+        image_rgb = cv2.cvtColor(rendered_image, cv2.COLOR_BGR2RGB)
+    
+        plt.imshow(image_rgb)
+        plt.axis('off')
+        plt.show()
 
-    plt.imshow(image_rgb)
-    plt.axis('off')
-    plt.show()
 
-
-image_path = "images/image13.jpeg"
-# is_uncanny_1(image_path)
-is_uncanny_2(image_path)
+image_path = "not_uncanny/2.jpeg"
+is_uncanny_vlm(image_path)
+is_uncanny_yolo(image_path, display = True)
