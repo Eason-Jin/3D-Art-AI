@@ -2,13 +2,10 @@ import torch
 import numpy as np
 import trimesh
 from skimage.measure import marching_cubes
-from transformers import CLIPTokenizer, CLIPTextModel
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MAX_TIME = 10
-OBJ_SIZE = 64
+OBJ_SIZE = 32
 random = np.random.RandomState(42)
-
 
 def corrupt(voxel_grid: torch.Tensor, amount: torch.Tensor) -> torch.Tensor:
     """
@@ -112,15 +109,19 @@ def voxel_to_obj(voxel_grid: np.ndarray, filename: str) -> None:
     mesh.export(filename)
 
 
-tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
-text_model = CLIPTextModel.from_pretrained(
-    "openai/clip-vit-base-patch32").eval().to(DEVICE)
 
 
-def text_encoder(text_list: list) -> torch.Tensor:
-    inputs = tokenizer(text_list, padding=True,
-                       truncation=True, return_tensors="pt").to(DEVICE)
+
+def text_encoder(text_list: list, tokenizer, text_model, device: torch.device) -> torch.Tensor:
+    inputs = tokenizer(
+        text_list,
+        padding=True,
+        truncation=True,
+        return_tensors="pt"
+    ).to(device)
+
     with torch.no_grad():
-        embeddings = text_model(
-            **inputs).last_hidden_state     # [B, seq_len, D]
+        embeddings = text_model(**inputs).last_hidden_state  # [B, seq_len, D]
+
     return embeddings
+

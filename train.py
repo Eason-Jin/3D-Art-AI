@@ -9,8 +9,11 @@ import pandas as pd
 import shutil
 from tqdm import tqdm
 from accelerate import Accelerator
+from transformers import CLIPTokenizer, CLIPTextModel
 
-# `accelerate launch train.py`
+
+# `~/.local/bin/accelerate config`
+# `~/.local/bin/accelerate launch train.py`
 
 OUTPUT_MODEL = False
 DATA_FILE = 'obj_data.csv'
@@ -24,7 +27,12 @@ def process_time_step(i, voxel_grid, filename):
 
 def main():
     accelerator = Accelerator()
+    print(f"[{accelerator.process_index}] Using device: {accelerator.device}")
     device = accelerator.device
+    
+    tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+    text_model = CLIPTextModel.from_pretrained(
+    "openai/clip-vit-base-patch32").eval().to(device)
 
     if OUTPUT_MODEL and accelerator.is_main_process:
         if os.path.exists('generated'):
@@ -100,7 +108,7 @@ def main():
             clean_voxel = batch['clean_voxel'].to(device)
             timestep = batch['noise_level'].to(device)
             descriptions = batch['description']
-            text_emb = text_encoder(descriptions).to(device)
+            text_emb = text_encoder(descriptions, tokenizer, text_model, device)
 
             pred = model(sample=noisy_voxel, timestep=timestep, encoder_hidden_states=text_emb).sample
             loss = loss_fn(pred, clean_voxel)
