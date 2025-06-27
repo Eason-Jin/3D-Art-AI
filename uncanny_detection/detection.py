@@ -5,7 +5,10 @@ import torch
 import cv2
 import matplotlib.pyplot as plt
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.cuda.empty_cache()
+torch.cuda.ipc_collect()
+
+DEVICE = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
 
 def is_uncanny_vlm(image_path):
     image = Image.open(image_path).convert("RGB")
@@ -68,6 +71,6 @@ def is_uncanny_yolo(image_path, display = False):
         plt.show()
 
 
-image_path = "not_uncanny/2.jpeg"
+image_path = "cup/2.jpeg"
 is_uncanny_vlm(image_path)
 is_uncanny_yolo(image_path, display = True)
