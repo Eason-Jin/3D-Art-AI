@@ -16,7 +16,7 @@ def is_uncanny_vlm(image_path):
     processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b")
     model = AutoModelForVision2Seq.from_pretrained("HuggingFaceM4/idefics2-8b",).to(DEVICE)
     
-    rule = "You are given an image. Decide whether it is canny or uncanny. An image is considered uncanny if it appears visually strange, unsettling, or unnatural. This includes things like distorted proportions, oddly merged or overlapping objects, unnatural facial features, eerie symmetry, or anything that feels off despite resembling familiar things. If the image looks normal, clear, and visually coherent, it is canny. Respond with only one word: either “canny” or “uncanny”."
+    rule = "You are an expert in visual psychology and artistic analysis. Examine the following image and determine whether it feels uncanny or not uncanny. A visual is considered uncanny if it evokes a sense of unease, eeriness, or something being subtly 'off', even if the image is artistic or surreal. If the image is strange or abstract but still feels natural, pleasing, or intentionally stylised, it is not uncanny. Respond with only: 'uncanny' or 'not uncanny'."
     
     messages = [
 	    {
@@ -40,7 +40,7 @@ def is_uncanny_vlm(image_path):
 
 
 def is_uncanny_yolo(image_path, display = False):
-    model = YOLO('yolov8s.pt')
+    model = YOLO('yolo11x.pt')
     results = model(image_path)[0]
     
 
@@ -54,7 +54,7 @@ def is_uncanny_yolo(image_path, display = False):
         if low_conf_ratio > 0.3:
             print("Image is UNCANNY (high low confidence ratio)")
         else:
-            print("Image is CANNY")
+            print("Image is NOT UNCANNY")
 
     if display:
         for box in results.boxes:
@@ -71,6 +71,6 @@ def is_uncanny_yolo(image_path, display = False):
         plt.show()
 
 
-image_path = "cup/2.jpeg"
+image_path = "not_uncanny/2.jpeg"
 is_uncanny_vlm(image_path)
 is_uncanny_yolo(image_path, display = True)
