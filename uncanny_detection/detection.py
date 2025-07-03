@@ -41,7 +41,8 @@ def is_uncanny_vlm(image_path):
 
 def is_uncanny_yolo(image_path, display = False):
     model = YOLO('yolo11x.pt')
-    results = model(image_path)[0]
+    image = cv2.imread(image_path)
+    results = model(image)[0]
     
 
     if len(results.boxes) == 0:
