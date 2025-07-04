@@ -1,7 +1,7 @@
 import pickle
 import pandas as pd
 from ultralytics import YOLO
-from uncanny_detection.reinforcement_learning.utils import DEVICE
+from utils import DEVICE
 
 
 class UncannyEnvironment:

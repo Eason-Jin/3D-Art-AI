@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from uncanny_detection.reinforcement_learning.utils import DEVICE
+from utils import DEVICE
 
 
 class SACAgent:

@@ -1,10 +1,9 @@
 # Initialize environment, agent, and replay buffer
-from uncanny_detection.reinforcement_learning.SAC_network import SACAgent
-from uncanny_detection.reinforcement_learning.environment import UncannyEnvironment
-from uncanny_detection.reinforcement_learning.replay_buffer import ReplayBuffer
+from SAC_network import SACAgent
+from environment import UncannyEnvironment
+from replay_buffer import ReplayBuffer
 import os
 import cv2
-from uncanny_detection.reinforcement_learning.utils import DEVICE
 
 
 IMAGE_FOLDER = './'
