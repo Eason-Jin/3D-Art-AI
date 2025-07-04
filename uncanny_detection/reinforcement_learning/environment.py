@@ -17,27 +17,28 @@ class UncannyEnvironment:
         self.current_index = 0
         uncanny_count = len(self.uncanny_data)
         not_uncanny_count = len(self.not_uncanny_data)
-        train_count = min(uncanny_count, not_uncanny_count)
+    
+        if uncanny_count != not_uncanny_count:
+            raise Exception(f"Unbalanced dataset! Uncanny: {uncanny_count}, Not Uncanny: {not_uncanny_count}") 
 
-        # Create train_data
-        uncanny_train = self.uncanny_data.sample(
-            n=train_count, random_state=42)
-        not_uncanny_train = self.not_uncanny_data.sample(
-            n=train_count, random_state=42)
-        self.train_data = pd.concat([uncanny_train, not_uncanny_train]).sample(
-            frac=1).reset_index(drop=True)
+        uncanny_shuffled = self.uncanny_data.sample(frac=1).reset_index(drop=True)
+        not_uncanny_shuffled = self.not_uncanny_data.sample(frac=1).reset_index(drop=True)
 
-        # Create test_data by excluding train_data indices
-        uncanny_test = self.uncanny_data.drop(uncanny_train.index)
-        not_uncanny_test = self.not_uncanny_data.drop(not_uncanny_train.index)
-        self.test_data = pd.concat([uncanny_test, not_uncanny_test]).sample(
-            frac=1).reset_index(drop=True)
+        split_idx = int(0.7 * uncanny_count)
 
-        return 0    # Initial accuracy is 0
+        uncanny_train = uncanny_shuffled.iloc[:split_idx]
+        uncanny_test = uncanny_shuffled.iloc[split_idx:]
 
-    def step(self, action):
-        confidence_threshold, low_conf_ratio_threshold = action
+        not_uncanny_train = not_uncanny_shuffled.iloc[:split_idx]
+        not_uncanny_test = not_uncanny_shuffled.iloc[split_idx:]
 
+        self.train_data = pd.concat([uncanny_train, not_uncanny_train]).sample(frac=1).reset_index(drop=True)
+        self.test_data = pd.concat([uncanny_test, not_uncanny_test]).sample(frac=1).reset_index(drop=True)
+
+        return 0  # Initial accuracy is 0
+
+
+    def step(self, confidence_threshold, low_conf_ratio_threshold):
         # Calculate accuracy over the test dataset
         correct_count = 0
         for i in range(len(self.test_data)):
@@ -71,7 +72,6 @@ class UncannyEnvironment:
 
     def get_detection(self, index):
         image = self.train_data.iloc[index, 0]
-        image = image.to(DEVICE)  # Move image to GPU
         return self.model(image)[0]
 
     def is_image_uncanny(self, detection, confidence_threshold, low_conf_ratio_threshold):
