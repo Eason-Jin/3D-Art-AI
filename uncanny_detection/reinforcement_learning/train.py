@@ -1,6 +1,6 @@
 # Initialize environment, agent, and replay buffer
 from uncanny_detection.reinforcement_learning.SAC_network import SACAgent
-from uncanny_detection.reinforcement_learning.environment import Environment
+from uncanny_detection.reinforcement_learning.environment import UncannyEnvironment
 from uncanny_detection.reinforcement_learning.replay_buffer import ReplayBuffer
 import os
 import pandas as pd
@@ -22,12 +22,11 @@ def load_images(folder, is_uncanny):
 uncanny_images = load_images(UNCANNY_FOLDER, True)
 not_uncanny_images = load_images(NOT_UNCANNY_FOLDER, False)
 
-data = pd.DataFrame(uncanny_images + not_uncanny_images)
-
-env = Environment(data)
+env = UncannyEnvironment(uncanny_images, not_uncanny_images)
 STATE_DIM = 1  # accuracy
 ACTION_DIM = 2  # confidence_threshold, low_conf_ratio_threshold
 ACTION_RANGE = [0, 1]
+INITIAL_THRESHOLDS = [0.4, 0.3]
 agent = SACAgent(STATE_DIM, ACTION_DIM, ACTION_RANGE)
 replay_buffer = ReplayBuffer(max_size=100000)
 
@@ -39,7 +38,10 @@ for episode in range(num_episodes):
     episode_reward = 0
 
     while True:
-        action = agent.select_action(state)
+        if episode < 10:
+            action = agent.select_action(state, initial_thresholds=INITIAL_THRESHOLDS)
+        else:
+            action = agent.select_action(state)
         reward, next_state, done = env.step(*action)
         replay_buffer.add(state, action, reward, next_state, done)
 

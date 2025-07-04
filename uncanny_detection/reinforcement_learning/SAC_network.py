@@ -24,7 +24,11 @@ class SACAgent:
         self.tau = 0.005
         self.alpha = 0.2  # Entropy coefficient
 
-    def select_action(self, state):
+    def select_action(self, state, initial_thresholds=None):
+        if initial_thresholds is not None:
+            # Use predefined initial thresholds
+            return initial_thresholds
+
         state = torch.FloatTensor(state).unsqueeze(0)
         action = self.actor(state).detach().numpy()[0]
         # Scale action to the desired range
