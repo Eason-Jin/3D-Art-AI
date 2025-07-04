@@ -30,7 +30,7 @@ class SACAgent:
             # Use predefined initial thresholds
             return initial_thresholds
 
-        state = torch.FloatTensor(state).unsqueeze(0)
+        state = torch.FloatTensor(state).unsqueeze(0).to(DEVICE)
         action = self.actor(state).detach().numpy()[0]
         # Scale action to the desired range
         action = self.action_range[0] + (action + 1.0) * \

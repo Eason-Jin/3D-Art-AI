@@ -48,7 +48,6 @@ for episode in range(num_episodes):
         else:
             action = agent.select_action(state)
         confidence_threshold, low_conf_ratio_threshold = action
-        print(action)
         reward, next_state, done = env.step(confidence_threshold, low_conf_ratio_threshold)
         replay_buffer.add(state, action, reward, next_state, done)
 
