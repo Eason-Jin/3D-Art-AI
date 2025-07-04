@@ -35,7 +35,7 @@ class UncannyEnvironment:
         self.train_data = pd.concat([uncanny_train, not_uncanny_train]).sample(frac=1).reset_index(drop=True)
         self.test_data = pd.concat([uncanny_test, not_uncanny_test]).sample(frac=1).reset_index(drop=True)
 
-        return 0  # Initial accuracy is 0
+        return [0.0]  # Initial accuracy is 0
 
 
     def step(self, confidence_threshold, low_conf_ratio_threshold):
@@ -68,7 +68,7 @@ class UncannyEnvironment:
                     'low_conf_ratio_threshold': low_conf_ratio_threshold,
                 }, f)
 
-        return reward, accuracy, done
+        return reward, [accuracy], done
 
     def get_detection(self, index):
         image = self.train_data.iloc[index, 0]

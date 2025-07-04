@@ -42,13 +42,15 @@ for episode in range(num_episodes):
     episode_reward = 0
 
     while True:
-        if episode < 10:
+        print(f"State: {state}")
+        if episode < 1:
             action = agent.select_action(
                 state, initial_thresholds=INITIAL_THRESHOLDS)
         else:
             action = agent.select_action(state)
         confidence_threshold, low_conf_ratio_threshold = action
         reward, next_state, done = env.step(confidence_threshold, low_conf_ratio_threshold)
+        print(f"Next State: {next_state}")
         replay_buffer.add(state, action, reward, next_state, done)
 
         if len(replay_buffer.buffer) > batch_size:
