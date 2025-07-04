@@ -45,7 +45,7 @@ class UncannyEnvironment:
             detection = self.get_detection(i)
             is_uncanny = self.is_image_uncanny(
                 detection, confidence_threshold, low_conf_ratio_threshold)
-            if is_uncanny == self.test_data[i][1]:
+            if is_uncanny == self.test_data.iloc[i, 1]:
                 correct_count += 1
 
         accuracy = correct_count / len(self.test_data)
@@ -53,7 +53,7 @@ class UncannyEnvironment:
         # Classify on the current image
         detection = self.get_detection(self.current_index)
         is_uncanny = self.is_image_uncanny(detection)
-        is_correct = is_uncanny == self.train_data[self.current_index][1]
+        is_correct = is_uncanny == self.train_data.iloc[self.current_index, 1]
         reward = self.calculate_reward(is_correct, accuracy)
 
         self.current_index += 1
