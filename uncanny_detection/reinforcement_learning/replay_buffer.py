@@ -1,5 +1,7 @@
 import random
 import numpy as np
+from uncanny_detection.reinforcement_learning.utils import DEVICE
+
 
 class ReplayBuffer:
     def __init__(self, max_size):

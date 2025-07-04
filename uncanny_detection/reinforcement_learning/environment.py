@@ -1,6 +1,7 @@
 import pickle
 import pandas as pd
 from ultralytics import YOLO
+from uncanny_detection.reinforcement_learning.utils import DEVICE
 
 
 class UncannyEnvironment:
@@ -10,7 +11,7 @@ class UncannyEnvironment:
         self.train_data = None
         self.test_data = None
         self.current_index = 0
-        self.model = YOLO('yolo11x.pt')
+        self.model = YOLO('yolo11x.pt').to(DEVICE)
 
     def reset(self):
         self.current_index = 0
@@ -19,14 +20,18 @@ class UncannyEnvironment:
         train_count = min(uncanny_count, not_uncanny_count)
 
         # Create train_data
-        uncanny_train = self.uncanny_data.sample(n=train_count, random_state=42)
-        not_uncanny_train = self.not_uncanny_data.sample(n=train_count, random_state=42)
-        self.train_data = pd.concat([uncanny_train, not_uncanny_train]).sample(frac=1).reset_index(drop=True)
+        uncanny_train = self.uncanny_data.sample(
+            n=train_count, random_state=42)
+        not_uncanny_train = self.not_uncanny_data.sample(
+            n=train_count, random_state=42)
+        self.train_data = pd.concat([uncanny_train, not_uncanny_train]).sample(
+            frac=1).reset_index(drop=True)
 
         # Create test_data by excluding train_data indices
         uncanny_test = self.uncanny_data.drop(uncanny_train.index)
         not_uncanny_test = self.not_uncanny_data.drop(not_uncanny_train.index)
-        self.test_data = pd.concat([uncanny_test, not_uncanny_test]).sample(frac=1).reset_index(drop=True)
+        self.test_data = pd.concat([uncanny_test, not_uncanny_test]).sample(
+            frac=1).reset_index(drop=True)
 
         return 0    # Initial accuracy is 0
 
@@ -37,7 +42,8 @@ class UncannyEnvironment:
         correct_count = 0
         for i in range(len(self.test_data)):
             detection = self.get_detection(i)
-            is_uncanny = self.is_image_uncanny(detection, confidence_threshold, low_conf_ratio_threshold)
+            is_uncanny = self.is_image_uncanny(
+                detection, confidence_threshold, low_conf_ratio_threshold)
             if is_uncanny == self.test_data[i][1]:
                 correct_count += 1
 
@@ -64,7 +70,9 @@ class UncannyEnvironment:
         return reward, accuracy, done
 
     def get_detection(self, index):
-        return self.model(self.train_data.iloc[index, 0])[0]
+        image = self.train_data.iloc[index, 0]
+        image = image.to(DEVICE)  # Move image to GPU
+        return self.model(image)[0]
 
     def is_image_uncanny(self, detection, confidence_threshold, low_conf_ratio_threshold):
         if len(detection.boxes) == 0:

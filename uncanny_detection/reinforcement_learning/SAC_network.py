@@ -1,15 +1,16 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
+from uncanny_detection.reinforcement_learning.utils import DEVICE
 
 
 class SACAgent:
     def __init__(self, state_dim, action_dim, action_range):
-        self.actor = Actor(state_dim, action_dim)
-        self.critic1 = Critic(state_dim, action_dim)
-        self.critic2 = Critic(state_dim, action_dim)
-        self.target_critic1 = Critic(state_dim, action_dim)
-        self.target_critic2 = Critic(state_dim, action_dim)
+        self.actor = Actor(state_dim, action_dim).to(DEVICE)
+        self.critic1 = Critic(state_dim, action_dim).to(DEVICE)
+        self.critic2 = Critic(state_dim, action_dim).to(DEVICE)
+        self.target_critic1 = Critic(state_dim, action_dim).to(DEVICE)
+        self.target_critic2 = Critic(state_dim, action_dim).to(DEVICE)
 
         # Copy weights to target networks
         self.target_critic1.load_state_dict(self.critic1.state_dict())
@@ -41,11 +42,11 @@ class SACAgent:
         state, action, reward, next_state, done = replay_buffer.sample(
             batch_size)
 
-        state = torch.FloatTensor(state)
-        action = torch.FloatTensor(action)
-        reward = torch.FloatTensor(reward).unsqueeze(1)
-        next_state = torch.FloatTensor(next_state)
-        done = torch.FloatTensor(done).unsqueeze(1)
+        state = torch.FloatTensor(state).to(DEVICE)
+        action = torch.FloatTensor(action).to(DEVICE)
+        reward = torch.FloatTensor(reward).unsqueeze(1).to(DEVICE)
+        next_state = torch.FloatTensor(next_state).to(DEVICE)
+        done = torch.FloatTensor(done).unsqueeze(1).to(DEVICE)
 
         # Update Critic
         with torch.no_grad():

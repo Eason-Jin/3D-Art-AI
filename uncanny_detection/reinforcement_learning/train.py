@@ -3,12 +3,14 @@ from uncanny_detection.reinforcement_learning.SAC_network import SACAgent
 from uncanny_detection.reinforcement_learning.environment import UncannyEnvironment
 from uncanny_detection.reinforcement_learning.replay_buffer import ReplayBuffer
 import os
-import pandas as pd
 import cv2
+from uncanny_detection.reinforcement_learning.utils import DEVICE
+
 
 IMAGE_FOLDER = './'
 UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'uncanny')
 NOT_UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'not_uncanny')
+
 
 def load_images(folder, is_uncanny):
     images = []
@@ -18,6 +20,7 @@ def load_images(folder, is_uncanny):
         if image is not None:
             images.append({'image': image, 'is_uncanny': is_uncanny})
     return images
+
 
 uncanny_images = load_images(UNCANNY_FOLDER, True)
 not_uncanny_images = load_images(NOT_UNCANNY_FOLDER, False)
@@ -39,7 +42,8 @@ for episode in range(num_episodes):
 
     while True:
         if episode < 10:
-            action = agent.select_action(state, initial_thresholds=INITIAL_THRESHOLDS)
+            action = agent.select_action(
+                state, initial_thresholds=INITIAL_THRESHOLDS)
         else:
             action = agent.select_action(state)
         reward, next_state, done = env.step(*action)
