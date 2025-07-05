@@ -10,7 +10,7 @@ class UncannyEnvironment:
         self.train_data = None
         self.test_data = None
         self.current_index = 0
-        self.model = YOLO('yolo11x.pt').to(DEVICE)
+        self.model = YOLO('yolo11x.pt', verbose=False).to(DEVICE)
 
     def reset(self):
         self.current_index = 0
@@ -61,13 +61,6 @@ class UncannyEnvironment:
 
         self.current_index += 1
         done = self.current_index >= len(self.train_data)
-
-        if done:
-            print(
-                f"\nConfidence Threshold: {confidence_threshold}, Low Confidence Ratio Threshold: {low_conf_ratio_threshold}")
-            with open('results.txt', 'w') as f:
-                f.write(f"Confidence Threshold: {confidence_threshold}\n")
-                f.write(f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}")
 
         return reward, [accuracy], done
 
