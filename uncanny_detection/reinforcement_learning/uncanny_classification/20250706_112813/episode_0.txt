@@ -1,0 +1,2 @@
+Confidence Threshold: 0.4
+Low Confidence Ratio Threshold: 0.3Accuracy: 0.39285714285714285

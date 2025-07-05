@@ -17,9 +17,9 @@ class UncannyEnvironment:
         uncanny_count = len(self.uncanny_data)
         not_uncanny_count = len(self.not_uncanny_data)
     
+        min_size = min(uncanny_count, not_uncanny_count)
         if uncanny_count != not_uncanny_count:
             print(f"Unbalanced dataset! Uncanny: {uncanny_count}, Not Uncanny: {not_uncanny_count}")
-            min_size = min(uncanny_count, not_uncanny_count)
             print("Removing images to balance dataset")
             self.uncanny_data = self.uncanny_data.sample(min_size).reset_index(drop=True)
             self.not_uncanny_data = self.not_uncanny_data.sample(min_size).reset_index(drop=True)
@@ -27,7 +27,7 @@ class UncannyEnvironment:
         uncanny_shuffled = self.uncanny_data.sample(frac=1).reset_index(drop=True)
         not_uncanny_shuffled = self.not_uncanny_data.sample(frac=1).reset_index(drop=True)
 
-        split_idx = int(0.7 * uncanny_count)
+        split_idx = int(0.7 * min_size)
 
         uncanny_train = uncanny_shuffled.iloc[:split_idx]
         uncanny_test = uncanny_shuffled.iloc[split_idx:]

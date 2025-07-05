@@ -76,7 +76,7 @@ for episode in range(num_episodes):
         with open(f'{results_dir}/{filename}', 'w') as f:
             f.write(f"Confidence Threshold: {confidence_threshold}\n")
             f.write(
-                f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}")
+                f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}\n")
             f.write(f"Accuracy: {state[0]}\n")
 
     print(f"Episode {episode + 1}, Reward: {episode_reward}")
