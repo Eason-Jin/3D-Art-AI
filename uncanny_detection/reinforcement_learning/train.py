@@ -1,4 +1,3 @@
-# Initialize environment, agent, and replay buffer
 from SAC_network import SACAgent
 from environment import UncannyEnvironment
 from replay_buffer import ReplayBuffer
@@ -39,7 +38,7 @@ num_episodes = 1000
 batch_size = 64
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-results_dir = os.path.join('uncanny_classification_', timestamp)
+results_dir = os.path.join('uncanny_classification', timestamp)
 if not os.path.exists(results_dir):
     os.makedirs(results_dir)
 
