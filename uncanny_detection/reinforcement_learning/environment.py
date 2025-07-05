@@ -1,4 +1,3 @@
-import pickle
 import pandas as pd
 from ultralytics import YOLO
 from utils import DEVICE
@@ -19,7 +18,11 @@ class UncannyEnvironment:
         not_uncanny_count = len(self.not_uncanny_data)
     
         if uncanny_count != not_uncanny_count:
-            raise Exception(f"Unbalanced dataset! Uncanny: {uncanny_count}, Not Uncanny: {not_uncanny_count}") 
+            print(f"Unbalanced dataset! Uncanny: {uncanny_count}, Not Uncanny: {not_uncanny_count}")
+            min_size = min(uncanny_count, not_uncanny_count)
+            print("Removing images to balance dataset")
+            self.uncanny_data = self.uncanny_data.sample(min_size).reset_index(drop=True)
+            self.not_uncanny_data = self.not_uncanny_data.sample(min_size).reset_index(drop=True)
 
         uncanny_shuffled = self.uncanny_data.sample(frac=1).reset_index(drop=True)
         not_uncanny_shuffled = self.not_uncanny_data.sample(frac=1).reset_index(drop=True)
@@ -62,11 +65,9 @@ class UncannyEnvironment:
         if done:
             print(
                 f"\nConfidence Threshold: {confidence_threshold}, Low Confidence Ratio Threshold: {low_conf_ratio_threshold}")
-            with open('results.pkl', 'wb') as f:
-                pickle.dump({
-                    'confidence_threshold': confidence_threshold,
-                    'low_conf_ratio_threshold': low_conf_ratio_threshold,
-                }, f)
+            with open('results.txt', 'w') as f:
+                f.write(f"Confidence Threshold: {confidence_threshold}\n")
+                f.write(f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}")
 
         return reward, [accuracy], done
 
