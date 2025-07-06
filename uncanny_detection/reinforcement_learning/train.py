@@ -6,6 +6,7 @@ import cv2
 import pandas as pd
 import datetime
 from imgaug import augmenters as iaa
+from utils import INITIAL_THRESHOLDS
 
 IMAGE_FOLDER = '../'
 UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'uncanny')
@@ -14,10 +15,10 @@ NOT_UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'not_uncanny')
 
 def load_images(folder, is_uncanny):
     images = []
-    augmenter = iaa.Sequential([
-        iaa.Fliplr(0.8),  # 80% chance to flip horizontally
-        iaa.LinearContrast((0.75, 1.5))  # Adjust contrast
-    ])
+
+    # Define individual augmenters
+    flip_augmenter = iaa.Fliplr(1.0)  # 100% chance to flip horizontally
+    contrast_augmenter = iaa.LinearContrast((0.75, 1.5))  # Adjust contrast
 
     for filename in os.listdir(folder):
         filepath = os.path.join(folder, filename)
@@ -27,9 +28,17 @@ def load_images(folder, is_uncanny):
             # Original image
             images.append({'image': image, 'is_uncanny': is_uncanny})
 
-            # Augmented image
-            augmented_image = augmenter(image=image)
-            images.append({'image': augmented_image, 'is_uncanny': is_uncanny})
+            # Flipped image
+            flipped_image = flip_augmenter(image=image)
+            images.append({'image': flipped_image, 'is_uncanny': is_uncanny})
+
+            # Contrast-adjusted image
+            contrast_image = contrast_augmenter(image=image)
+            images.append({'image': contrast_image, 'is_uncanny': is_uncanny})
+
+            # Both flipped and contrast-adjusted image
+            flipped_contrast_image = contrast_augmenter(image=flipped_image)
+            images.append({'image': flipped_contrast_image, 'is_uncanny': is_uncanny})
 
     return images
 
@@ -39,10 +48,9 @@ not_uncanny_images = load_images(NOT_UNCANNY_FOLDER, False)
 
 env = UncannyEnvironment(pd.DataFrame(uncanny_images),
                          pd.DataFrame(not_uncanny_images))
-STATE_DIM = 1  # accuracy
+STATE_DIM = 4  # confidence_threshold, low_conf_ratio_threshold, accuracy, current_index/len(train_data)
 ACTION_DIM = 2  # confidence_threshold, low_conf_ratio_threshold
 ACTION_RANGE = [0.1, 0.9]
-INITIAL_THRESHOLDS = [0.4, 0.3]
 agent = SACAgent(STATE_DIM, ACTION_DIM, ACTION_RANGE)
 replay_buffer = ReplayBuffer(max_size=100000)
 
@@ -56,9 +64,12 @@ if not os.path.exists(reward_dir):
 
 for episode in range(num_episodes):
     state = env.reset()
+    assert len(
+        state) == STATE_DIM, f"State should have {STATE_DIM} dimensions, got {len(state)}"
     episode_reward = 0
     step = 0
     while True:
+        print(f"Episode {episode}, Step {step}")
         if episode == 0 and step == 0:  # Use initial thresholds only for the first step
             action = agent.select_action(
                 state, initial_thresholds=INITIAL_THRESHOLDS)
@@ -67,8 +78,10 @@ for episode in range(num_episodes):
         confidence_threshold, low_conf_ratio_threshold = action
         reward, next_state, done = env.step(
             confidence_threshold, low_conf_ratio_threshold)
-        print(f"Episode {episode}, Step {step}")
-        print(f"Action: {(confidence_threshold, low_conf_ratio_threshold)}, Reward: {reward}, Accuracy: {next_state[0]}")
+        assert len(
+            next_state) == STATE_DIM, f"Next state should have {STATE_DIM} dimensions, got {len(next_state)}"
+        print(
+            f"Action: {(confidence_threshold, low_conf_ratio_threshold)}, Accuracy: {next_state[2]}")
         print()
         replay_buffer.add(state, action, reward, next_state, done)
 
@@ -86,10 +99,4 @@ for episode in range(num_episodes):
         f.write(f"Confidence Threshold: {confidence_threshold}\n")
         f.write(
             f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}\n")
-        f.write(f"Accuracy: {state[0]}\n\n")
-
-    print(f"Episode {episode}, Reward: {episode_reward}")
-    print(f"Confidence Threshold: {confidence_threshold}")
-    print(f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}")
-    print(f"Accuracy: {state[0]}")
-    print()
+        f.write(f"Accuracy: {state[2]}\n\n")
