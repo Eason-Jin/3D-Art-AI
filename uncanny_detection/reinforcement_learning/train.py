@@ -5,7 +5,7 @@ import os
 import cv2
 import pandas as pd
 import datetime
-import numpy as np  # Import numpy
+from imgaug import augmenters as iaa
 
 IMAGE_FOLDER = '../'
 UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'uncanny')
@@ -14,12 +14,23 @@ NOT_UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'not_uncanny')
 
 def load_images(folder, is_uncanny):
     images = []
+    augmenter = iaa.Sequential([
+        iaa.Fliplr(0.8),  # 80% chance to flip horizontally
+        iaa.LinearContrast((0.75, 1.5))  # Adjust contrast
+    ])
+
     for filename in os.listdir(folder):
         filepath = os.path.join(folder, filename)
         print(f"Loading {filepath}")
         image = cv2.imread(filepath)
         if image is not None:
+            # Original image
             images.append({'image': image, 'is_uncanny': is_uncanny})
+
+            # Augmented image
+            augmented_image = augmenter(image=image)
+            images.append({'image': augmented_image, 'is_uncanny': is_uncanny})
+
     return images
 
 
