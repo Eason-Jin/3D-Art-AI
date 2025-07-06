@@ -1,7 +1,7 @@
 import pandas as pd
 from ultralytics import YOLO
 from utils import DEVICE, INITIAL_THRESHOLDS
-
+import math
 
 class UncannyEnvironment:
     def __init__(self, uncanny_data: pd.DataFrame, not_uncanny_data: pd.DataFrame):
@@ -111,11 +111,9 @@ class UncannyEnvironment:
                 else:  # False negative
                     false_negative += 1
 
-        accuracy = float(correct_count / len(self.test_data)) * 100
-        precision = (true_positive / (true_positive + false_positive)) * \
-            100 if (true_positive + false_positive) > 0 else 0
-        recall = (true_positive / (true_positive + false_negative)) * \
-            100 if (true_positive + false_negative) > 0 else 0
+        accuracy = float(correct_count / len(self.test_data))
+        precision = (true_positive / (true_positive + false_positive)) if (true_positive + false_positive) > 0 else 0
+        recall = (true_positive / (true_positive + false_negative)) if (true_positive + false_negative) > 0 else 0
 
         return accuracy, precision, recall
 
@@ -129,16 +127,22 @@ class UncannyEnvironment:
             return low_conf_ratio > low_conf_ratio_threshold
 
     def calculate_reward(self, is_correct, accuracy, precision, recall):
-        r1, r2, r3 = 0.2, 0.8, 0.5
 
-        current_reward = 10 if is_correct else -10
+        current_reward = 1 if is_correct else -1
 
-        accuracy_reward = accuracy - self.prev_accuracy
-        precision_reward = precision - self.prev_precision
-        recall_reward = recall - self.prev_recall
+        # Metrics range between 0 and 1
+        accuracy_reward = (accuracy - self.prev_accuracy)
+        precision_reward = (precision - self.prev_precision)
+        recall_reward = (recall - self.prev_recall)
 
-        reward = r1 * current_reward + \
-            r2 * (accuracy + precision + recall) + \
-            r3 * (accuracy_reward + precision_reward + recall_reward)
+        imbalance = abs(accuracy - precision) + \
+            abs(accuracy - recall) + abs(precision - recall)
+        # Sigmoid range between 0 and 3
+        imbalance_penalty = 1 / (1 + math.exp(-10 * (imbalance - 1.5)))  # \frac{1}{1+e^{-10\left(x-1.5\right)}}
+
+        reward = current_reward + \
+            2 * (accuracy + precision + recall) + \
+            (accuracy_reward + precision_reward + recall_reward) - \
+            imbalance_penalty
 
         return reward
