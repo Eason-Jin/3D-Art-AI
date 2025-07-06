@@ -8,7 +8,7 @@ import datetime
 from imgaug import augmenters as iaa
 from utils import INITIAL_THRESHOLDS
 
-IMAGE_FOLDER = '../'
+IMAGE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'uncanny')
 NOT_UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'not_uncanny')
 
