@@ -5,6 +5,7 @@ import os
 import cv2
 import pandas as pd
 import datetime
+import numpy as np  # Import numpy
 
 IMAGE_FOLDER = '../'
 UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'uncanny')
@@ -29,26 +30,25 @@ env = UncannyEnvironment(pd.DataFrame(uncanny_images),
                          pd.DataFrame(not_uncanny_images))
 STATE_DIM = 1  # accuracy
 ACTION_DIM = 2  # confidence_threshold, low_conf_ratio_threshold
-ACTION_RANGE = [0, 1]
+ACTION_RANGE = [0.1, 0.9]
 INITIAL_THRESHOLDS = [0.4, 0.3]
 agent = SACAgent(STATE_DIM, ACTION_DIM, ACTION_RANGE)
 replay_buffer = ReplayBuffer(max_size=100000)
 
-num_episodes = 1000
+num_episodes = 10
 batch_size = 64
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-results_dir = os.path.join('uncanny_classification', timestamp)
-if not os.path.exists(results_dir):
-    os.makedirs(results_dir)
+reward_dir = os.path.join('uncanny_classification', timestamp, 'rewards')
+if not os.path.exists(reward_dir):
+    os.makedirs(reward_dir)
 
 for episode in range(num_episodes):
     state = env.reset()
     episode_reward = 0
-
+    step = 0
     while True:
-        print(f"State: {state}")
-        if episode == 0:
+        if episode == 0 and step == 0:  # Use initial thresholds only for the first step
             action = agent.select_action(
                 state, initial_thresholds=INITIAL_THRESHOLDS)
         else:
@@ -56,7 +56,9 @@ for episode in range(num_episodes):
         confidence_threshold, low_conf_ratio_threshold = action
         reward, next_state, done = env.step(
             confidence_threshold, low_conf_ratio_threshold)
-        print(f"Next State: {next_state}")
+        print(f"Episode {episode}, Step {step}")
+        print(f"Action: {(confidence_threshold, low_conf_ratio_threshold)}, Reward: {reward}, Accuracy: {next_state[0]}")
+        print()
         replay_buffer.add(state, action, reward, next_state, done)
 
         if len(replay_buffer.buffer) > batch_size:
@@ -64,22 +66,18 @@ for episode in range(num_episodes):
 
         state = next_state
         episode_reward += reward
-
+        step += 1
         if done:
             break
 
-    if episode % 10 == 0 or episode == num_episodes - 1:
-        if episode == num_episodes - 1:
-            filename = 'final.txt'
-        else:
-            filename = f'episode_{episode}.txt'
-        with open(f'{results_dir}/{filename}', 'w') as f:
-            f.write(f"Confidence Threshold: {confidence_threshold}\n")
-            f.write(
-                f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}\n")
-            f.write(f"Accuracy: {state[0]}\n")
+    with open(f'{reward_dir}/rewards.txt', 'a') as f:
+        f.write(f"Episode {episode}, Reward: {episode_reward}\n")
+        f.write(f"Confidence Threshold: {confidence_threshold}\n")
+        f.write(
+            f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}\n")
+        f.write(f"Accuracy: {state[0]}\n\n")
 
-    print(f"Episode {episode + 1}, Reward: {episode_reward}")
+    print(f"Episode {episode}, Reward: {episode_reward}")
     print(f"Confidence Threshold: {confidence_threshold}")
     print(f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}")
     print(f"Accuracy: {state[0]}")
