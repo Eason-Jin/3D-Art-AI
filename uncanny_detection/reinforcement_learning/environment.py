@@ -133,19 +133,12 @@ class UncannyEnvironment:
 
         current_reward = 10 if is_correct else -10
 
-        accuracy_reward = self.calculate_metric_reward(
-            accuracy, self.prev_accuracy)
-        precision_reward = self.calculate_metric_reward(
-            precision, self.prev_precision)
-        recall_reward = self.calculate_metric_reward(
-            recall, self.prev_recall)
+        accuracy_reward = accuracy - self.prev_accuracy
+        precision_reward = precision - self.prev_precision
+        recall_reward = recall - self.prev_recall
 
         reward = r1 * current_reward + \
             r2 * (accuracy + precision + recall) + \
             r3 * (accuracy_reward + precision_reward + recall_reward)
 
         return reward
-
-    def calculate_metric_reward(self, val, prev_val):
-        delta = val - prev_val
-        return -10 if delta <= 0 else delta

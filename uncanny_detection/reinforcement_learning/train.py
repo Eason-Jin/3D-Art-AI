@@ -49,14 +49,13 @@ not_uncanny_images = load_images(NOT_UNCANNY_FOLDER, False)
 
 env = UncannyEnvironment(pd.DataFrame(uncanny_images),
                          pd.DataFrame(not_uncanny_images))
-# confidence_threshold, low_conf_ratio_threshold, accuracy, precision, recall, current_index/len(train_data)
-STATE_DIM = 6
+STATE_DIM = 6	# confidence_threshold, low_conf_ratio_threshold, accuracy, precision, recall, current_index/len(train_data)
 ACTION_DIM = 2  # confidence_threshold, low_conf_ratio_threshold
-ACTION_RANGE = [0.1, 0.9]
+ACTION_RANGE = [0.01, 0.99]
 agent = SACAgent(STATE_DIM, ACTION_DIM, ACTION_RANGE)
 replay_buffer = ReplayBuffer(max_size=100000)
 
-num_episodes = 10
+num_episodes = 1000
 batch_size = 64
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -78,6 +77,8 @@ for episode in range(num_episodes):
         else:
             action = agent.select_action(state)
         confidence_threshold, low_conf_ratio_threshold = action
+        confidence_threshold = max(ACTION_RANGE[0], min(confidence_threshold, ACTION_RANGE[1]))
+        low_conf_ratio_threshold = max(ACTION_RANGE[0], min(low_conf_ratio_threshold, ACTION_RANGE[1]))
         reward, next_state, done = env.step(
             confidence_threshold, low_conf_ratio_threshold)
         assert len(
@@ -101,4 +102,4 @@ for episode in range(num_episodes):
         f.write(f"Confidence Threshold: {confidence_threshold}\n")
         f.write(
             f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}\n")
-        f.write(f"Accuracy: {state[2]}\n\n")
+        f.write(f"Accuracy: {state[2]}, Precision: {state[3]}, Recall: {state[4]}\n\n")
