@@ -180,5 +180,5 @@ cython_debug/
 /papers
 *.csv
 /models
-requirements.txt
-token.txt
+*.txt
+!requirements.txt
