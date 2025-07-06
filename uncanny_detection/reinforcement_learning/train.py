@@ -17,7 +17,7 @@ def load_images(folder, is_uncanny):
     images = []
 
     # Define individual augmenters
-    flip_augmenter = iaa.Fliplr(1.0)  # 100% chance to flip horizontally
+    flip_augmenter = iaa.Fliplr(1.0)  # Flip all images horizontally
     contrast_augmenter = iaa.LinearContrast((0.75, 1.5))  # Adjust contrast
 
     for filename in os.listdir(folder):
@@ -38,7 +38,8 @@ def load_images(folder, is_uncanny):
 
             # Both flipped and contrast-adjusted image
             flipped_contrast_image = contrast_augmenter(image=flipped_image)
-            images.append({'image': flipped_contrast_image, 'is_uncanny': is_uncanny})
+            images.append({'image': flipped_contrast_image,
+                          'is_uncanny': is_uncanny})
 
     return images
 
@@ -48,7 +49,8 @@ not_uncanny_images = load_images(NOT_UNCANNY_FOLDER, False)
 
 env = UncannyEnvironment(pd.DataFrame(uncanny_images),
                          pd.DataFrame(not_uncanny_images))
-STATE_DIM = 4  # confidence_threshold, low_conf_ratio_threshold, accuracy, current_index/len(train_data)
+# confidence_threshold, low_conf_ratio_threshold, accuracy, precision, recall, current_index/len(train_data)
+STATE_DIM = 6
 ACTION_DIM = 2  # confidence_threshold, low_conf_ratio_threshold
 ACTION_RANGE = [0.1, 0.9]
 agent = SACAgent(STATE_DIM, ACTION_DIM, ACTION_RANGE)
@@ -81,7 +83,7 @@ for episode in range(num_episodes):
         assert len(
             next_state) == STATE_DIM, f"Next state should have {STATE_DIM} dimensions, got {len(next_state)}"
         print(
-            f"Action: {(confidence_threshold, low_conf_ratio_threshold)}, Accuracy: {next_state[2]}")
+            f"Action: {(confidence_threshold, low_conf_ratio_threshold)}, Reward: {reward}")
         print()
         replay_buffer.add(state, action, reward, next_state, done)
 

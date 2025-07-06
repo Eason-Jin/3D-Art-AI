@@ -1,7 +1,8 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from utils import DEVICE, normalize_reward, denormalize_reward
+import numpy as np
+from utils import DEVICE
 
 
 class SACAgent:
@@ -23,6 +24,7 @@ class SACAgent:
         self.action_range = action_range
         self.gamma = 0.99
         self.tau = 0.005
+        self.alpha = 0.2  # Entropy coefficient for exploration
 
     def select_action(self, state, initial_thresholds=None):
         if initial_thresholds is not None:
@@ -32,7 +34,9 @@ class SACAgent:
         else:
             state = torch.FloatTensor(state).unsqueeze(0).to(DEVICE)
             with torch.no_grad():
-                action = self.actor(state).detach().cpu().numpy()[0]
+                action_mean = self.actor(state).detach().cpu().numpy()[0]
+                action_std = self.alpha  # Use alpha as a proxy for exploration noise
+                action = np.random.normal(action_mean, action_std)
 
             action = self.action_range[0] + (action + 1.0) * \
                 0.5 * (self.action_range[1] - self.action_range[0])
@@ -44,7 +48,8 @@ class SACAgent:
             for param in self.actor.parameters():
                 param.uniform_(-0.1, 0.1)  # Small random initialization
             # Adjust the final layer bias to approximate initial thresholds
-            self.actor.fc3.bias.data = torch.FloatTensor(initial_thresholds).to(DEVICE)
+            self.actor.fc3.bias.data = torch.FloatTensor(
+                initial_thresholds).to(DEVICE)
 
     def update(self, replay_buffer, batch_size=64):
         # Sample a batch from the replay buffer
@@ -56,11 +61,6 @@ class SACAgent:
         reward = torch.FloatTensor(reward).unsqueeze(1).to(DEVICE)
         next_state = torch.FloatTensor(next_state).to(DEVICE)
         done = torch.FloatTensor(done).unsqueeze(1).to(DEVICE)
-
-        # # Normalize rewards
-        # reward_mean = reward.mean()
-        # reward_std = reward.std()
-        # reward = normalize_reward(reward, reward_mean, reward_std)
 
         # Update Critic
         with torch.no_grad():
@@ -88,7 +88,8 @@ class SACAgent:
         self.critic2_optimizer.step()
 
         # Update Actor
-        actor_loss = -self.critic1(state, self.actor(state)).mean()
+        actor_loss = -self.critic1(state, self.actor(state)).mean() + \
+            self.alpha * self.actor(state).std().mean()
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
 
