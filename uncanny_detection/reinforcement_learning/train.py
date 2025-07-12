@@ -55,13 +55,16 @@ ACTION_RANGE = [0.01, 0.99]
 agent = SACAgent(STATE_DIM, ACTION_DIM, ACTION_RANGE)
 replay_buffer = ReplayBuffer(max_size=100000)
 
-num_episodes = 1000
+num_episodes = 100
 batch_size = 64
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
 reward_dir = os.path.join('uncanny_classification', timestamp, 'rewards')
 if not os.path.exists(reward_dir):
     os.makedirs(reward_dir)
+with open(f'{reward_dir}/rewards.csv', 'w') as f:
+    f.write("Episode,Reward,Conf,LowConf,Accuracy,Precision,Recall\n")
 
 for episode in range(num_episodes):
     state = env.reset()
@@ -97,9 +100,5 @@ for episode in range(num_episodes):
         if done:
             break
 
-    with open(f'{reward_dir}/rewards.txt', 'a') as f:
-        f.write(f"Episode {episode}, Reward: {episode_reward}\n")
-        f.write(f"Confidence Threshold: {confidence_threshold}\n")
-        f.write(
-            f"Low Confidence Ratio Threshold: {low_conf_ratio_threshold}\n")
-        f.write(f"Accuracy: {state[2]}, Precision: {state[3]}, Recall: {state[4]}\n\n")
+    with open(f'{reward_dir}/rewards.csv', 'a') as f:
+        f.write(f"{episode},{episode_reward},{confidence_threshold},{low_conf_ratio_threshold},{state[2]},{state[3]},{state[4]}\n")
