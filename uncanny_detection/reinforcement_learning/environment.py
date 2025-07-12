@@ -137,11 +137,12 @@ class UncannyEnvironment:
 
         imbalance = abs(accuracy - precision) + \
             abs(accuracy - recall) + abs(precision - recall)
+        
         # Sigmoid range between 0 and 3
         imbalance_penalty = 1 / (1 + math.exp(-10 * (imbalance - 1.5)))  # \frac{1}{1+e^{-10\left(x-1.5\right)}}
 
         reward = current_reward + \
-            2 * (accuracy + precision + recall) + \
+            2 * (accuracy + precision + 0.5 * recall) + \
             (accuracy_reward + precision_reward + recall_reward) - \
             imbalance_penalty
 
