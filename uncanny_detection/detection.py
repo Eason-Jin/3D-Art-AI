@@ -4,15 +4,14 @@ from PIL import Image
 import torch
 import cv2
 import matplotlib.pyplot as plt
+from reinforcement_learning.utils import load_images, UNCANNY_FOLDER, NOT_UNCANNY_FOLDER
 
 torch.cuda.empty_cache()
 torch.cuda.ipc_collect()
 
 DEVICE = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
 
-def is_uncanny_vlm(image_path):
-    image = Image.open(image_path).convert("RGB")
-
+def is_uncanny_vlm(image):
     processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b")
     model = AutoModelForVision2Seq.from_pretrained("HuggingFaceM4/idefics2-8b",).to(DEVICE)
     
@@ -36,7 +35,8 @@ def is_uncanny_vlm(image_path):
     response = processor.batch_decode(generated_ids, skip_special_tokens=True)
     response = response[0]
     filtered_response = response[response.find("Assistant: ")+10:-1].upper()
-    print("Model response:", filtered_response)
+    # print("Model response:", filtered_response)
+    return filtered_response == "UNCANNY"
 
 
 def is_uncanny_yolo(image_path, display = False):
@@ -71,7 +71,35 @@ def is_uncanny_yolo(image_path, display = False):
         plt.axis('off')
         plt.show()
 
+def main():
+    uncanny_images = load_images(UNCANNY_FOLDER, True)
+    not_uncanny_images = load_images(NOT_UNCANNY_FOLDER, False)
 
-image_path = "not_uncanny/2.jpeg"
-is_uncanny_vlm(image_path)
-is_uncanny_yolo(image_path, display = True)
+    correct_count = 0
+    true_positive = 0
+    false_positive = 0
+    false_negative = 0
+    
+    for image in uncanny_images:
+        is_uncanny = is_uncanny_vlm(image)
+        # is_uncanny_yolo(image_path, display = False)
+        if is_uncanny:
+            correct_count += 1
+            true_positive += 1
+        else:
+            false_negative += 1
+    for image in not_uncanny_images:
+        is_uncanny = is_uncanny_vlm(image)
+        if not is_uncanny:
+            correct_count += 1
+        else:
+            false_positive += 1
+    
+    accuracy = correct_count / (len(uncanny_images) + len(not_uncanny_images))
+    precision = (true_positive / (true_positive + false_positive)) if (true_positive +
+    false_positive) > 0 else 0
+    recall = (true_positive / (true_positive + false_negative)) if (true_positive + false_negative) > 0 else 0
+    print(f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
+
+if __name__ == "__main__":
+    main()

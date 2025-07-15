@@ -2,46 +2,10 @@ from SAC_network import SACAgent
 from environment import UncannyEnvironment
 from replay_buffer import ReplayBuffer
 import os
-import cv2
 import pandas as pd
 import datetime
-from imgaug import augmenters as iaa
-from utils import INITIAL_THRESHOLDS
 
-IMAGE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
-UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'uncanny')
-NOT_UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'not_uncanny')
-
-
-def load_images(folder, is_uncanny):
-    images = []
-
-    # Define individual augmenters
-    flip_augmenter = iaa.Fliplr(1.0)  # Flip all images horizontally
-    contrast_augmenter = iaa.LinearContrast((0.75, 1.5))  # Adjust contrast
-
-    for filename in os.listdir(folder):
-        filepath = os.path.join(folder, filename)
-        print(f"Loading {filepath}")
-        image = cv2.imread(filepath)
-        if image is not None:
-            # Original image
-            images.append({'image': image, 'is_uncanny': is_uncanny})
-
-            # Flipped image
-            flipped_image = flip_augmenter(image=image)
-            images.append({'image': flipped_image, 'is_uncanny': is_uncanny})
-
-            # Contrast-adjusted image
-            contrast_image = contrast_augmenter(image=image)
-            images.append({'image': contrast_image, 'is_uncanny': is_uncanny})
-
-            # Both flipped and contrast-adjusted image
-            flipped_contrast_image = contrast_augmenter(image=flipped_image)
-            images.append({'image': flipped_contrast_image,
-                          'is_uncanny': is_uncanny})
-
-    return images
+from utils import INITIAL_THRESHOLDS, load_images, UNCANNY_FOLDER, NOT_UNCANNY_FOLDER
 
 
 uncanny_images = load_images(UNCANNY_FOLDER, True)
@@ -49,7 +13,8 @@ not_uncanny_images = load_images(NOT_UNCANNY_FOLDER, False)
 
 env = UncannyEnvironment(pd.DataFrame(uncanny_images),
                          pd.DataFrame(not_uncanny_images))
-STATE_DIM = 6	# confidence_threshold, low_conf_ratio_threshold, accuracy, precision, recall, current_index/len(train_data)
+# confidence_threshold, low_conf_ratio_threshold, accuracy, precision, recall, current_index/len(train_data)
+STATE_DIM = 6
 ACTION_DIM = 2  # confidence_threshold, low_conf_ratio_threshold
 ACTION_RANGE = [0.01, 0.99]
 agent = SACAgent(STATE_DIM, ACTION_DIM, ACTION_RANGE)
@@ -80,8 +45,10 @@ for episode in range(num_episodes):
         else:
             action = agent.select_action(state)
         confidence_threshold, low_conf_ratio_threshold = action
-        confidence_threshold = max(ACTION_RANGE[0], min(confidence_threshold, ACTION_RANGE[1]))
-        low_conf_ratio_threshold = max(ACTION_RANGE[0], min(low_conf_ratio_threshold, ACTION_RANGE[1]))
+        confidence_threshold = max(ACTION_RANGE[0], min(
+            confidence_threshold, ACTION_RANGE[1]))
+        low_conf_ratio_threshold = max(ACTION_RANGE[0], min(
+            low_conf_ratio_threshold, ACTION_RANGE[1]))
         reward, next_state, done = env.step(
             confidence_threshold, low_conf_ratio_threshold)
         assert len(
@@ -101,4 +68,5 @@ for episode in range(num_episodes):
             break
 
     with open(f'{reward_dir}/rewards.csv', 'a') as f:
-        f.write(f"{episode},{episode_reward},{confidence_threshold},{low_conf_ratio_threshold},{state[2]},{state[3]},{state[4]}\n")
+        f.write(
+            f"{episode},{episode_reward},{confidence_threshold},{low_conf_ratio_threshold},{state[2]},{state[3]},{state[4]}\n")
