@@ -1,8 +1,8 @@
 from transformers import AutoProcessor, AutoModelForVision2Seq
+from transformers.image_utils import load_image
 from ultralytics import YOLO
 from PIL import Image
 import torch
-import cv2
 import matplotlib.pyplot as plt
 from reinforcement_learning.utils import load_images, UNCANNY_FOLDER, NOT_UNCANNY_FOLDER
 
@@ -12,6 +12,7 @@ torch.cuda.ipc_collect()
 DEVICE = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
 
 def is_uncanny_vlm(image):
+    image = load_image(image)
     processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b")
     model = AutoModelForVision2Seq.from_pretrained("HuggingFaceM4/idefics2-8b",).to(DEVICE)
     
@@ -41,7 +42,7 @@ def is_uncanny_vlm(image):
 
 def is_uncanny_yolo(image_path, display = False):
     model = YOLO('yolo11x.pt')
-    image = cv2.imread(image_path)
+    image = Image.open(image_path).convert("RGB")
     results = model(image)[0]
     
 
@@ -65,7 +66,7 @@ def is_uncanny_yolo(image_path, display = False):
             print(f"{class_name}: {confidence:.2f}")
             
         rendered_image = results.plot()  # Returns an image array (BGR format)
-        image_rgb = cv2.cvtColor(rendered_image, cv2.COLOR_BGR2RGB)
+        image_rgb = rendered_image[:, :, ::-1]  # Convert BGR to RGB for display
     
         plt.imshow(image_rgb)
         plt.axis('off')
