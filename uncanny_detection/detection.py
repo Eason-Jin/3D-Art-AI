@@ -5,6 +5,9 @@ from PIL import Image
 import torch
 import matplotlib.pyplot as plt
 from reinforcement_learning.utils import load_images, UNCANNY_FOLDER, NOT_UNCANNY_FOLDER
+import os
+
+os.environ["HF_HOME"] = "/data/ejin458/huggingface"
 
 torch.cuda.empty_cache()
 torch.cuda.ipc_collect()
@@ -42,7 +45,7 @@ def is_uncanny_vlm(image):
 
 def is_uncanny_yolo(image_path, display = False):
     model = YOLO('yolo11x.pt')
-    image = Image.open(image_path).convert("RGB")
+    image = Image.open(image_path)
     results = model(image)[0]
     
 

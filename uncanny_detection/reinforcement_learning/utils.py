@@ -1,7 +1,8 @@
 import torch
 from imgaug import augmenters as iaa
 import os
-import cv2
+from PIL import Image
+import numpy as np
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 INITIAL_THRESHOLDS = [0.4, 0.3]
@@ -14,29 +15,32 @@ NOT_UNCANNY_FOLDER = os.path.join(IMAGE_FOLDER, 'not_uncanny')
 def load_images(folder, is_uncanny):
     images = []
 
-    # Define individual augmenters
     flip_augmenter = iaa.Fliplr(1.0)  # Flip all images horizontally
     contrast_augmenter = iaa.LinearContrast((0.75, 1.5))  # Adjust contrast
 
     for filename in os.listdir(folder):
         filepath = os.path.join(folder, filename)
         print(f"Loading {filepath}")
-        image = cv2.imread(filepath)
+        image = Image.open(filepath)
         if image is not None:
+            np_image = np.array(image)
+
             # Original image
             images.append({'image': image, 'is_uncanny': is_uncanny})
 
             # Flipped image
-            flipped_image = flip_augmenter(image=image)
+            flipped_np = flip_augmenter(image=np_image)
+            flipped_image = Image.fromarray(flipped_np)
             images.append({'image': flipped_image, 'is_uncanny': is_uncanny})
 
             # Contrast-adjusted image
-            contrast_image = contrast_augmenter(image=image)
+            contrast_np = contrast_augmenter(image=np_image)
+            contrast_image = Image.fromarray(contrast_np)
             images.append({'image': contrast_image, 'is_uncanny': is_uncanny})
 
             # Both flipped and contrast-adjusted image
-            flipped_contrast_image = contrast_augmenter(image=flipped_image)
-            images.append({'image': flipped_contrast_image,
-                          'is_uncanny': is_uncanny})
+            flipped_contrast_np = contrast_augmenter(image=flipped_np)
+            flipped_contrast_image = Image.fromarray(flipped_contrast_np)
+            images.append({'image': flipped_contrast_image, 'is_uncanny': is_uncanny})
 
     return images
