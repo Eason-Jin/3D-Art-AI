@@ -90,13 +90,21 @@ def main():
         result = is_uncanny_vlm(image)
         print(f"Actual: {is_uncanny}")
         if result and is_uncanny:
+            # Model response is "UNCANNY" and is_uncanny is True
             true_positive += 1
+            print("Incrementing true positive")
         elif result and not is_uncanny:
+            # Model response is "UNCANNY" but is_uncanny is False
             false_positive += 1
+            print("Incrementing false positive")
         elif not result and is_uncanny:
+            # Model response is "NOT UNCANNY" but is_uncanny is True
             false_negative += 1
+            print("Incrementing false negative")
         else:
+            # Model response is "NOT UNCANNY" and is_uncanny is False
             true_negative += 1
+            print("Incrementing true negative")
 
     accuracy, precision, recall = calculate_confusion_matrix(true_positive, false_positive, true_negative, false_negative)
 
