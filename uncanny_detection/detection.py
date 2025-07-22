@@ -76,9 +76,9 @@ def main():
     uncanny_images = load_images(UNCANNY_FOLDER, True)
     not_uncanny_images = load_images(NOT_UNCANNY_FOLDER, False)
 
-    correct_count = 0
     true_positive = 0
     false_positive = 0
+    true_negative = 0
     false_negative = 0
     
     for element in uncanny_images + not_uncanny_images:
@@ -87,18 +87,20 @@ def main():
         result = is_uncanny_vlm(image)
         if result:
             if is_uncanny:
-                correct_count += 1
                 true_positive += 1
             else:
                 false_positive += 1
         else:
             if is_uncanny:
                 false_negative += 1
+            else:
+                true_negative += 1
     
-    accuracy = correct_count / (len(uncanny_images) + len(not_uncanny_images))
-    precision = (true_positive / (true_positive + false_positive)) if (true_positive +
-    false_positive) > 0 else 0
-    recall = (true_positive / (true_positive + false_negative)) if (true_positive + false_negative) > 0 else 0
+    accuracy = (true_positive + true_negative) / (true_positive + false_positive + true_negative + false_negative)
+    precision = true_positive / (true_positive + false_positive)
+    recall = true_positive / (true_positive + false_negative)
+    print("\nConfusion Matrix:")
+    print(f"TP: {true_positive}\tFP: {false_positive}\nFN: {false_negative}\tTN: {true_negative}")
     print(f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
 
 if __name__ == "__main__":
