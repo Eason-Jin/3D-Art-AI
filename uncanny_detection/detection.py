@@ -81,20 +81,19 @@ def main():
     false_positive = 0
     false_negative = 0
     
-    for image in uncanny_images:
-        is_uncanny = is_uncanny_vlm(image)
-        # is_uncanny_yolo(image_path, display = False)
-        if is_uncanny:
-            correct_count += 1
-            true_positive += 1
+    for element in uncanny_images + not_uncanny_images:
+        image = element['image']
+        is_uncanny = element['is_uncanny']
+        result = is_uncanny_vlm(image)
+        if result:
+            if is_uncanny:
+                correct_count += 1
+                true_positive += 1
+            else:
+                false_positive += 1
         else:
-            false_negative += 1
-    for image in not_uncanny_images:
-        is_uncanny = is_uncanny_vlm(image)
-        if not is_uncanny:
-            correct_count += 1
-        else:
-            false_positive += 1
+            if is_uncanny:
+                false_negative += 1
     
     accuracy = correct_count / (len(uncanny_images) + len(not_uncanny_images))
     precision = (true_positive / (true_positive + false_positive)) if (true_positive +
