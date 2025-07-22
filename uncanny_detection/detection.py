@@ -5,12 +5,12 @@ import matplotlib.pyplot as plt
 from reinforcement_learning.utils import load_images, UNCANNY_FOLDER, NOT_UNCANNY_FOLDER
 import os
 
-# os.environ["HF_HOME"] = "/data/ejin458/huggingface"
+os.environ["HF_HOME"] = "/data/ejin458/huggingface"
 
 torch.cuda.empty_cache()
 torch.cuda.ipc_collect()
 
-DEVICE = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def is_uncanny_vlm(image):
     processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b")
@@ -36,7 +36,7 @@ def is_uncanny_vlm(image):
     response = processor.batch_decode(generated_ids, skip_special_tokens=True)
     response = response[0]
     filtered_response = response[response.find("Assistant: ")+10:-1].upper()
-    # print("Model response:", filtered_response)
+    print("Model response:", filtered_response)
     return filtered_response == "UNCANNY"
 
 
@@ -85,20 +85,29 @@ def main():
         image = element['image']
         is_uncanny = element['is_uncanny']
         result = is_uncanny_vlm(image)
-        if result:
-            if is_uncanny:
-                true_positive += 1
-            else:
-                false_positive += 1
+        print(f"Actual: {is_uncanny}")
+        if result and is_uncanny:
+            true_positive += 1
+        elif result and not is_uncanny:
+            false_positive += 1
+        elif not result and is_uncanny:
+            false_negative += 1
         else:
-            if is_uncanny:
-                false_negative += 1
-            else:
-                true_negative += 1
+            true_negative += 1
     
-    accuracy = (true_positive + true_negative) / (true_positive + false_positive + true_negative + false_negative)
-    precision = true_positive / (true_positive + false_positive)
-    recall = true_positive / (true_positive + false_negative)
+    try:
+    	accuracy = (true_positive + true_negative) / (true_positive + false_positive + true_negative + false_negative)
+    except ZeroDivisionError:
+	    accuracy = 0
+    try:
+    	precision = true_positive / (true_positive + false_positive)
+    except ZeroDivisionError:
+	    precision = 0
+    try:
+    	recall = true_positive / (true_positive + false_negative)
+    except ZeroDivisionError:
+	    recall = 0
+	    
     print("\nConfusion Matrix:")
     print(f"TP: {true_positive}\tFP: {false_positive}\nFN: {false_negative}\tTN: {true_negative}")
     print(f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
