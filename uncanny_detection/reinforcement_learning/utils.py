@@ -44,3 +44,9 @@ def load_images(folder, is_uncanny):
             # images.append({'image': flipped_contrast_image, 'is_uncanny': is_uncanny})
 
     return images
+
+def calculate_confusion_matrix(true_positive, false_positive, true_negative, false_negative):
+    accuracy = ((true_positive + true_negative) / (true_positive + false_positive + true_negative + false_negative)) if (true_positive + false_positive + true_negative + false_negative) > 0 else 0
+    precision = (true_positive / (true_positive + false_positive)) if (true_positive + false_positive) > 0 else 0
+    recall = (true_positive / (true_positive + false_negative)) if (true_positive + false_negative) > 0 else 0
+    return accuracy, precision, recall

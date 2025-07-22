@@ -2,7 +2,7 @@ from transformers import AutoProcessor, AutoModelForVision2Seq
 from ultralytics import YOLO
 import torch
 import matplotlib.pyplot as plt
-from reinforcement_learning.utils import load_images, UNCANNY_FOLDER, NOT_UNCANNY_FOLDER
+from reinforcement_learning.utils import load_images, UNCANNY_FOLDER, NOT_UNCANNY_FOLDER, calculate_confusion_matrix
 import os
 
 os.environ["HF_HOME"] = "/data/ejin458/huggingface"
@@ -12,23 +12,26 @@ torch.cuda.ipc_collect()
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+
 def is_uncanny_vlm(image):
     processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b")
-    model = AutoModelForVision2Seq.from_pretrained("HuggingFaceM4/idefics2-8b",).to(DEVICE)
-    
+    model = AutoModelForVision2Seq.from_pretrained(
+        "HuggingFaceM4/idefics2-8b",).to(DEVICE)
+
     rule = "You are an expert in visual psychology and artistic analysis. Examine the following image and determine whether it feels uncanny or not uncanny. A visual is considered uncanny if it evokes a sense of unease, eeriness, or something being subtly 'off', even if the image is artistic or surreal. If the image is strange or abstract but still feels natural, pleasing, or intentionally stylised, it is not uncanny. Respond with only: 'uncanny' or 'not uncanny'."
-    
+
     messages = [
-	    {
-	        "role": "user",
-	        "content": [
-	            {"type": "image"},
-	            {"type": "text", "text": rule},
+        {
+            "role": "user",
+            "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": rule},
             ]
-        },  
+        },
     ]
-    
-    prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+
+    prompt = processor.apply_chat_template(
+        messages, add_generation_prompt=True)
     inputs = processor(text=prompt, images=[image], return_tensors="pt")
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
 
@@ -40,11 +43,9 @@ def is_uncanny_vlm(image):
     return filtered_response == "UNCANNY"
 
 
-def is_uncanny_yolo(image_path, display = False):
+def is_uncanny_yolo(image, display=False):
     model = YOLO('yolo11x.pt')
-    image = Image.open(image_path)
     results = model(image)[0]
-    
 
     if len(results.boxes) == 0:
         print("Image is UNCANNY (no detections)")
@@ -64,13 +65,15 @@ def is_uncanny_yolo(image_path, display = False):
             class_name = model.names[cls_id]
             confidence = float(box.conf[0])
             print(f"{class_name}: {confidence:.2f}")
-            
+
         rendered_image = results.plot()  # Returns an image array (BGR format)
-        image_rgb = rendered_image[:, :, ::-1]  # Convert BGR to RGB for display
-    
+        # Convert BGR to RGB for display
+        image_rgb = rendered_image[:, :, ::-1]
+
         plt.imshow(image_rgb)
         plt.axis('off')
         plt.show()
+
 
 def main():
     uncanny_images = load_images(UNCANNY_FOLDER, True)
@@ -80,7 +83,7 @@ def main():
     false_positive = 0
     true_negative = 0
     false_negative = 0
-    
+
     for element in uncanny_images + not_uncanny_images:
         image = element['image']
         is_uncanny = element['is_uncanny']
@@ -94,23 +97,15 @@ def main():
             false_negative += 1
         else:
             true_negative += 1
-    
-    try:
-    	accuracy = (true_positive + true_negative) / (true_positive + false_positive + true_negative + false_negative)
-    except ZeroDivisionError:
-	    accuracy = 0
-    try:
-    	precision = true_positive / (true_positive + false_positive)
-    except ZeroDivisionError:
-	    precision = 0
-    try:
-    	recall = true_positive / (true_positive + false_negative)
-    except ZeroDivisionError:
-	    recall = 0
-	    
+
+    accuracy, precision, recall = calculate_confusion_matrix(true_positive, false_positive, true_negative, false_negative)
+
     print("\nConfusion Matrix:")
-    print(f"TP: {true_positive}\tFP: {false_positive}\nFN: {false_negative}\tTN: {true_negative}")
-    print(f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
+    print(
+        f"TP: {true_positive}\tFP: {false_positive}\nFN: {false_negative}\tTN: {true_negative}")
+    print(
+        f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
+
 
 if __name__ == "__main__":
     main()

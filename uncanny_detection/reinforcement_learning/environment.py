@@ -1,6 +1,6 @@
 import pandas as pd
 from ultralytics import YOLO
-from utils import DEVICE, INITIAL_THRESHOLDS
+from utils import DEVICE, INITIAL_THRESHOLDS, calculate_confusion_matrix
 import math
 
 class UncannyEnvironment:
@@ -90,9 +90,9 @@ class UncannyEnvironment:
         return self.model(image, verbose=False)[0]
 
     def calculate_metrics(self, confidence_threshold, low_conf_ratio_threshold):
-        correct_count = 0
         true_positive = 0
         false_positive = 0
+        true_negative = 0
         false_negative = 0
 
         for i in range(len(self.test_data)):
@@ -101,19 +101,16 @@ class UncannyEnvironment:
                 detection, confidence_threshold, low_conf_ratio_threshold)
             actual_label = self.test_data.iloc[i, 1]
 
-            if is_uncanny == actual_label:
-                correct_count += 1
-                if is_uncanny:  # True positive
-                    true_positive += 1
-            else:
-                if is_uncanny:  # False positive
-                    false_positive += 1
-                else:  # False negative
-                    false_negative += 1
+            if is_uncanny and actual_label == 1:
+                true_positive += 1
+            elif is_uncanny and actual_label == 0:
+                false_positive += 1
+            elif not is_uncanny and actual_label == 0:
+                true_negative += 1
+            elif not is_uncanny and actual_label == 1:
+                false_negative += 1
 
-        accuracy = float(correct_count / len(self.test_data))
-        precision = (true_positive / (true_positive + false_positive)) if (true_positive + false_positive) > 0 else 0
-        recall = (true_positive / (true_positive + false_negative)) if (true_positive + false_negative) > 0 else 0
+        accuracy, precision, recall = calculate_confusion_matrix(true_positive, false_positive, true_negative, false_negative)
 
         return accuracy, precision, recall
 
@@ -142,8 +139,7 @@ class UncannyEnvironment:
         imbalance_penalty = 1 / (1 + math.exp(-10 * (imbalance - 1.5)))  # \frac{1}{1+e^{-10\left(x-1.5\right)}}
 
         reward = current_reward + \
-            2 * (accuracy + precision + 0.5 * recall) + \
-            (accuracy_reward + precision_reward + recall_reward) - \
+            (accuracy + precision + recall) + \
             imbalance_penalty
 
         return reward
