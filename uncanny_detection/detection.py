@@ -1,13 +1,11 @@
 from transformers import AutoProcessor, AutoModelForVision2Seq
-from transformers.image_utils import load_image
 from ultralytics import YOLO
-from PIL import Image
 import torch
 import matplotlib.pyplot as plt
 from reinforcement_learning.utils import load_images, UNCANNY_FOLDER, NOT_UNCANNY_FOLDER
 import os
 
-os.environ["HF_HOME"] = "/data/ejin458/huggingface"
+# os.environ["HF_HOME"] = "/data/ejin458/huggingface"
 
 torch.cuda.empty_cache()
 torch.cuda.ipc_collect()
@@ -15,7 +13,6 @@ torch.cuda.ipc_collect()
 DEVICE = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
 
 def is_uncanny_vlm(image):
-    image = load_image(image)
     processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b")
     model = AutoModelForVision2Seq.from_pretrained("HuggingFaceM4/idefics2-8b",).to(DEVICE)
     

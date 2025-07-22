@@ -1,8 +1,8 @@
 import torch
 from imgaug import augmenters as iaa
 import os
-from PIL import Image
 import numpy as np
+from transformers.image_utils import load_image
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 INITIAL_THRESHOLDS = [0.4, 0.3]
@@ -21,26 +21,26 @@ def load_images(folder, is_uncanny):
     for filename in os.listdir(folder):
         filepath = os.path.join(folder, filename)
         print(f"Loading {filepath}")
-        image = Image.open(filepath)
+        image = load_image(filepath)
         if image is not None:
-            np_image = np.array(image)
+            # np_image = np.array(image)
 
             # Original image
             images.append({'image': image, 'is_uncanny': is_uncanny})
 
             # Flipped image
-            flipped_np = flip_augmenter(image=np_image)
-            flipped_image = Image.fromarray(flipped_np)
-            images.append({'image': flipped_image, 'is_uncanny': is_uncanny})
+            # flipped_np = flip_augmenter(image=np_image)
+            # flipped_image = Image.fromarray(flipped_np)
+            # images.append({'image': flipped_image, 'is_uncanny': is_uncanny})
 
             # Contrast-adjusted image
-            contrast_np = contrast_augmenter(image=np_image)
-            contrast_image = Image.fromarray(contrast_np)
-            images.append({'image': contrast_image, 'is_uncanny': is_uncanny})
+            # contrast_np = contrast_augmenter(image=np_image)
+            # contrast_image = Image.fromarray(contrast_np)
+            # images.append({'image': contrast_image, 'is_uncanny': is_uncanny})
 
             # Both flipped and contrast-adjusted image
-            flipped_contrast_np = contrast_augmenter(image=flipped_np)
-            flipped_contrast_image = Image.fromarray(flipped_contrast_np)
-            images.append({'image': flipped_contrast_image, 'is_uncanny': is_uncanny})
+            # flipped_contrast_np = contrast_augmenter(image=flipped_np)
+            # flipped_contrast_image = Image.fromarray(flipped_contrast_np)
+            # images.append({'image': flipped_contrast_image, 'is_uncanny': is_uncanny})
 
     return images
