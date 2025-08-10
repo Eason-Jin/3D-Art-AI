@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def render_model(model_path):
-    mesh = trimesh.load(model_path)
+    mesh = trimesh.load_mesh(model_path)
 
     scene = pyrender.Scene()
     mesh_node = pyrender.Mesh.from_trimesh(mesh)
@@ -31,7 +31,7 @@ def render_model(model_path):
         
         renderer = pyrender.OffscreenRenderer(512, 512)
         color, _ = renderer.render(scene)
-        # plt.imsave(f"obj/renders/render_{angle}.png", color)
+        plt.imsave(f"obj/renders/render_{angle}.png", color)
         renders.append(color)
 
         scene.remove_node(camera_node)
@@ -40,4 +40,4 @@ def render_model(model_path):
     renderer.delete()
     return renders
 
-print(len(render_model("obj/monkey.obj")))
+# render_model("obj/0.glb")
