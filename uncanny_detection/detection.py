@@ -4,6 +4,7 @@ import torch
 import matplotlib.pyplot as plt
 from reinforcement_learning.utils import load_images, UNCANNY_FOLDER, NOT_UNCANNY_FOLDER, calculate_confusion_matrix
 import os
+from render_model import render_model
 
 os.environ["HF_HOME"] = "/data/ejin458/huggingface"
 
@@ -114,6 +115,18 @@ def main():
     print(
         f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
 
+def judge_model(model_path):
+    renders = render_model(model_path)
+    uncanny_count = 0
+    for render in renders:
+        is_uncanny = is_uncanny_vlm(render)
+        if is_uncanny:
+            uncanny_count += 1
+    if uncanny_count > len(renders) / 2:
+        print(f"The model {model_path} is considered to be UNCANNY.")
+    else:
+        print(f"The model {model_path} is considered to be NOT UNCANNY.")
 
 if __name__ == "__main__":
-    main()
+    # main()
+    judge_model("obj/0.glb")
